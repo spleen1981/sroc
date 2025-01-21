@@ -1,0 +1,344 @@
+"""
+Copyright (C) 2025 Giovanni Cascione <ing.cascione@gmail.com>
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+"""
+import os
+import cv2
+
+import matplotlib.pyplot as plt
+import concurrent.futures
+
+from itertools import product
+
+import numpy as np
+
+from .overlay import Rect
+from .overlay import Rects
+from .files import test_saved_file
+from .files import get_path_info
+from .structure import Table
+from .structure import tilesCrawlerResult
+
+
+class RectCanvas():
+    def __init__(self, image_path):
+        if not test_saved_file(image_path):
+            raise ValueError(f"File {image_path} does not exist")
+        # TODO double check rotation is actually needed
+        self.rotation = 0
+        self.image_path = image_path
+        self.path, self.name, self.ext = get_path_info(image_path)
+        img = self.getOriginalCanvas()
+        self.h_orig, self.w_orig = img.shape[:2]
+        self.w, self.h = (self.w_orig, self.h_orig)
+        self.rects = Rects()
+
+    def getOriginalCanvas(self, color=False, crop_to_viewport=False, show_rects=False):
+        if color:
+            mode = cv2.IMREAD_COLOR
+        else:
+            mode = cv2.IMREAD_GRAYSCALE
+        img = cv2.imread(self.image_path, mode)
+
+        return self.__rectDress(img, crop_to_viewport, show_rects)
+
+    def getCurrentCanvas(self, extend=True, color=False, crop_to_viewport=False, show_rects=False):
+        img = self.getOriginalCanvas(color=color, crop_to_viewport=crop_to_viewport, show_rects=show_rects)
+        if self.w != self.w_orig or self.h != self.h_orig:
+            img = cv2.resize(img, (self.w, self.h), interpolation=cv2.INTER_AREA)
+        if self.rotation:
+            M = cv2.getRotationMatrix2D((self.w / 2, self.h / 2), self.rotation, 1.0)
+            if extend:
+                cos = np.abs(M[0, 0])
+                sin = np.abs(M[0, 1])
+                rot_width = int((self.h * sin) + (self.w * cos))
+                rot_height = int((self.h * cos) + (self.w * sin))
+            else:
+                rot_width = self.w
+                rot_height = self.h
+            img = cv2.warpAffine(img, M, (rot_width, rot_height))
+
+        return self.__rectDress(img, crop_to_viewport, show_rects)
+
+        return img
+
+    def __rectDress(self, img, crop_to_viewport=False, show_rects=False):
+        if show_rects:
+            for i in range(len(self.rects)):
+                rect = self.rects.getRect(i)
+                img = cv2.rectangle(img, rect.topLeft(), rect.bottomRight(), (0, 255, 100), 2)
+            # plt.figure(figsize=(100, 100))
+
+        if crop_to_viewport:
+            img = img[self.rects.mainRect.ymin():self.rects.mainRect.ymax(),
+                  self.rects.mainRect.xmin():self.rects.mainRect.xmax()]
+        return img
+
+    def originalCanvasSize(self):
+        return self.getOriginalCanvas().shape[:2]
+
+    def currentCanvasSize(self):
+        return self.getCurrentCanvas().shape[:2]
+
+    """
+    def plot(self, output_file=None):
+        image_color = cv2.cvtColor(self.getCurrentCanvas(), cv2.COLOR_GRAY2BGR)
+        overlay = image_color.copy()
+        alpha = 0.5
+        cv2.addWeighted(overlay, alpha, image_color, 1 - alpha, 0, image_color)
+
+        for rect in self.rects.to2Points():
+            pt1, pt2 = rect
+            cv2.rectangle(overlay, pt1, pt2, (255, 0, 0), 1)
+
+        outimg = cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB)
+        plt.imshow(outimg)
+        if not output_file is None:
+            _, _, ext = get_path_info(output_file)
+            plt.imsave(output_file, outimg, format=ext[1:], cmap="hot")
+        plt.show()
+
+    """
+
+    def moveRectsFrom(self, rects):
+        self.rects.moveRectsFrom(rects)
+
+
+class RectScanner(RectCanvas):
+    def __init__(self, image_path):
+
+        super().__init__(image_path)
+
+    def __groupPointsToLines(self, scan_coor):
+        lines = []
+        image = self.getCurrentCanvas()
+        height, width = image.shape
+
+        if scan_coor:
+            range_out = height
+            range_in = width
+        else:
+            range_out = width
+            range_in = height
+
+        for scan_out in range(range_out):
+            start = -1
+            end = -1
+            row = []
+            for scan_in in range(range_in):
+                if scan_coor:
+                    color = image[scan_out, scan_in]
+                else:
+                    color = image[scan_in, scan_out]
+
+                if color < self.color_treshold:
+                    if start == -1:
+                        start = scan_in
+                        end = -1
+                else:
+                    if start != -1:
+                        end = scan_in
+                if end != -1:
+                    if end - start > self.length_treshold:
+                        row.append([start, end])
+                    end = -1
+                    start = -1
+            if start != -1:
+                row.append([start, range_in - 1])
+
+            lines.append(row)
+
+        return lines
+
+    def __groupLinesToRects(self, lines, scan_coor):
+        rects = []
+        for i in range(1, len(lines)):
+            for j in range(len(lines[i])):
+                found = False
+                for k in range(len(rects)):
+                    xmin, ymin, xmax, ymax = rects[k]
+                    if scan_coor:
+                        scan_dir = ymin
+                        margin_min = xmin
+                        margin_max = xmax
+                    else:
+                        scan_dir = ymin
+                        margin_min = xmin
+                        margin_max = xmax
+
+                    if (i - scan_dir) <= 1 + self.adjacent_margin and abs(
+                            lines[i][j][0] - margin_min) <= self.limits_margin and abs(
+                        lines[i][j][1] - margin_max) <= self.limits_margin:
+                        found = True
+                        if scan_coor:
+                            rects[k] = [xmin, ymin, xmax, i]
+                        else:
+                            rects[k] = [xmin, ymin, i, ymax]
+                if found == False:
+                    if scan_coor:
+                        rects.append([lines[i][j][0], i, lines[i][j][1], i])
+                    else:
+                        rects.append([i, lines[i][j][0], i, lines[i][j][1]])
+                found = False
+        return Rects().fromBox(rects)
+
+    def scanFilledRects(self, color_treshold=200, min_lenght=20, adjacent_margin=0, limits_margin=1):
+        self.color_treshold = color_treshold
+        self.length_treshold = min_lenght
+        self.adjacent_margin = adjacent_margin
+        self.limits_margin = limits_margin
+        self.rects.moveRectsFrom(self.__groupLinesToRects(self.__groupPointsToLines(1), 1))
+        self.rects.moveRectsFrom(self.__groupLinesToRects(self.__groupPointsToLines(0), 0))
+        return self.rects
+
+
+class CanvasTiler(RectCanvas):
+    def __init__(self, filename, rotation=0, tiles_target_no=64, tile_width=640, tile_height=640,
+                 force_horizontal=True):
+        self.tile_width = tile_width
+        self.tile_height = tile_height
+        # self.force_horizontal = force_horizontal
+        self.tiles_target_no = tiles_target_no
+        super().__init__(filename)
+        self.__preLoadedCanvas = None
+
+        if self.w % self.tile_width:
+            self.w = int(self.w + (self.tile_width - self.w % self.tile_width))
+        if self.h % self.tile_height:
+            self.h = int(self.h + (self.tile_height - self.h % self.tile_height))
+
+    """
+        if self.force_horizontal and self.h > self.w and abs(self.rotation) != 90:
+            self.rotation += 90
+            self.h, self.w = self.canvasSize()
+    """
+
+    def __tileName(self, x, y):
+        return f'{self.name}_{x}_{y}{self.ext}'
+
+    """
+    def getCanvas(self, extend=True):
+        # Increase size to multiples of tile sizes
+        def adjustToTileSize():
+            if self.w % self.tile_width:
+                self.w = int(self.w + (self.tile_width - self.w % self.tile_width))
+            if self.h % self.tile_height:
+                self.h = int(self.h + (self.tile_height - self.h % self.tile_height))
+
+        adjustToTileSize()
+
+        tiles = self.lenX() + self.lenY()
+        warn_tiles = 4 + 2 * self.lenX() + 2 * self.lenY()
+        if tiles < self.tiles_target_no:
+            delta_tiles = self.tiles_target_no - tiles
+            self.w = int(self.w + delta_tiles * self.lenX() / tiles)
+            self.h = int(self.h + delta_tiles * self.lenY() / tiles)
+            adjustToTileSize()
+        elif tiles > warn_tiles:
+            warnings.warn(
+                f"Number of tiles much bigger than target ({warn_tiles} vs {tiles}). Make sure this is intentional!",
+                UserWarning)
+
+        return super().getCanvas(extend)
+    """
+
+    def lenX(self):
+        return int(self.w / self.tile_width)
+
+    def lenY(self):
+        return int(self.h / self.tile_height)
+
+    def __len__(self):
+        return self.lenX() * self.lenY()
+
+    def getTileName(self, index_x, index_y):
+        return self.__tileName(index_x * self.tile_width, index_y * self.tile_height) + self.ext
+
+    def saveTiles(self, output_path):
+        img = self.getCurrentCanvas()
+        for x, y in product(range(0, self.h, self.tile_height), range(0, self.w, self.tile_width)):
+            box = (y, x, y + self.tile_height, x + self.tile_width)
+            out = os.path.join(output_path, self.__tileName(x, y))
+            img.crop(box).save(out)
+            test_saved_file(out, True)
+
+    def __testTileIndex(self, index_x, index_y):
+        if not index_x in range(self.lenX()) or not index_y in range(self.lenY()):
+            raise ValueError(f"Tile index out of range {index_x},{index_y} vs {self.lenX()},{self.lenY()}")
+
+    def getTile(self, index_x, index_y):
+        self.__testTileIndex(index_x, index_y)
+
+        if self.__preLoadedCanvas is None:
+            canvas = self.getCurrentCanvas()
+        else:
+            canvas = self.__preLoadedCanvas
+
+        return canvas[index_y * self.tile_height:(index_y + 1) * self.tile_height,
+               index_x * self.tile_width:(index_x + 1) * self.tile_width]
+
+    def joinTiles(self, tiles_path, output_path, restore_original_size=False):
+        tot_x_items = self.lenX()
+        tot_y_items = self.lenY()
+        new_im = np.zeros((tot_y_items * self.tile_height, tot_x_items * self.tile_width, 3), dtype=np.uint8)
+
+        for x, y in product(range(0, self.h, self.tile_height), range(0, self.w, self.tile_width)):
+            im = cv2.imread(os.path.join(tiles_path, self.__tileName(x, y) + self.ext))
+            new_im[x:x + self.tile_width, y:y + self.tile_height] = im
+
+        if restore_original_size == True:
+            new_im = cv2.resize(new_im, (self.w_orig, self.h_orig), interpolation=cv2.INTER_LANCZOS4)
+
+        file_out = os.path.join(output_path, f'{self.name}{self.ext}')
+        cv2.imwrite('output_image.jpg', new_im)
+        test_saved_file(file_out)
+        return file_out
+
+    def tilesCrawler(self, crawler_callback, threads=1, status_callback=None, color=False,
+                     results_on_original_canvas=True):
+        self.__preLoadedCanvas = self.getCurrentCanvas(color=color)
+        tile = self.getTile
+        crawler_counter = 0
+
+        def __crawler(x, y):
+            nonlocal crawler_counter
+            crawler_counter += 1
+            res = crawler_callback(tile(x, y))
+            if not status_callback is None:
+                status_callback(crawler_counter)
+            if not isinstance(res, type(tilesCrawlerResult())):
+                raise TypeError(
+                    f"crawler_callback has to return {type(tilesCrawlerResult)} type.")
+            if res.data['offsetBoxes']:
+                for i in range(len(res.data['offsetBoxes'])):
+                    item = res.data['offsetBoxes'][i]
+                    rect = Rect().fromBox(item)
+                    rect.addOffset(offset_x=self.tile_width * x, offset_y=self.tile_height * y)
+                    if results_on_original_canvas:
+                        rect.addScaleFactor(self.w_orig / self.w, self.h_orig / self.h)
+                    res.data['offsetBoxes'][i] = rect.toBox()
+            return res
+
+        callback_args_list = list(product(range(self.lenX()), range(self.lenY())))
+        with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
+            results = list(executor.map(lambda args: __crawler(*args), callback_args_list))
+
+        combined_results = tilesCrawlerResult()
+        if len(results):
+            for i in range(len(results)):
+                combined_results += results[i]
+
+        self.__preLoadedCanvas = None
+        return combined_results
