@@ -26,16 +26,10 @@ import numpy as np
 
 from .overlay import Rect
 from .overlay import Rects
-from .files import test_saved_file
-from .files import get_path_info
-from .structure import Table
-from .structure import tilesCrawlerResult
 
 
 class RectCanvas():
     def __init__(self, image_path):
-        if not test_saved_file(image_path):
-            raise ValueError(f"File {image_path} does not exist")
         # TODO double check rotation is actually needed
         self.rotation = 0
         self.image_path = image_path
@@ -272,7 +266,7 @@ class CanvasTiler(RectCanvas):
             box = (y, x, y + self.tile_height, x + self.tile_width)
             out = os.path.join(output_path, self.__tileName(x, y))
             img.crop(box).save(out)
-            test_saved_file(out, True)
+            # test_saved_file(out, True)
 
     def __testTileIndex(self, index_x, index_y):
         if not index_x in range(self.lenX()) or not index_y in range(self.lenY()):
@@ -303,7 +297,7 @@ class CanvasTiler(RectCanvas):
 
         file_out = os.path.join(output_path, f'{self.name}{self.ext}')
         cv2.imwrite('output_image.jpg', new_im)
-        test_saved_file(file_out)
+        # test_saved_file(file_out)
         return file_out
 
     def tilesCrawler(self, crawler_callback, threads=1, status_callback=None, color=False,
@@ -318,27 +312,28 @@ class CanvasTiler(RectCanvas):
             res = crawler_callback(tile(x, y))
             if not status_callback is None:
                 status_callback(crawler_counter)
-            if not isinstance(res, type(tilesCrawlerResult())):
-                raise TypeError(
-                    f"crawler_callback has to return {type(tilesCrawlerResult)} type.")
-            if res.data['offsetBoxes']:
-                for i in range(len(res.data['offsetBoxes'])):
-                    item = res.data['offsetBoxes'][i]
+            if isinstance(res, dict) and 'offsetBoxes' in res:
+                for i in range(len(res['offsetBoxes'])):
+                    item = res['offsetBoxes'][i]
                     rect = Rect().fromBox(item)
                     rect.addOffset(offset_x=self.tile_width * x, offset_y=self.tile_height * y)
                     if results_on_original_canvas:
                         rect.addScaleFactor(self.w_orig / self.w, self.h_orig / self.h)
-                    res.data['offsetBoxes'][i] = rect.toBox()
+                    res['offsetBoxes'][i] = rect.toBox()
             return res
 
         callback_args_list = list(product(range(self.lenX()), range(self.lenY())))
         with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
             results = list(executor.map(lambda args: __crawler(*args), callback_args_list))
 
-        combined_results = tilesCrawlerResult()
+        combined_results = {}
         if len(results):
-            for i in range(len(results)):
-                combined_results += results[i]
+            for result in results:
+                for key, value in result.items():
+                    if key in combined_results:
+                        combined_results[key] += value
+                    else:
+                        combined_results[key] = value
 
         self.__preLoadedCanvas = None
         return combined_results

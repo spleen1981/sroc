@@ -22,7 +22,6 @@ from .overlay import Rects
 from .overlay import CactusRects
 from .canvas import RectCanvas
 from .canvas import RectScanner
-from .structure import tilesCrawlerResult
 from .canvas import CanvasTiler
 
 __version__ = '0.1'
@@ -39,6 +38,5 @@ __all__ = [
     'CactusRects',
     'RectCanvas',
     'RectScanner',
-    'tilesCrawlerResult',
     'CanvasTiler'
 ]
