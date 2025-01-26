@@ -16,6 +16,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 import os
 import cv2
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import concurrent.futures
@@ -32,8 +33,12 @@ class RectCanvas():
     def __init__(self, image_path):
         # TODO double check rotation is actually needed
         self.rotation = 0
-        self.image_path = image_path
-        self.path, self.name, self.ext = get_path_info(image_path)
+        self.image_path = Path(image_path)
+        if not self.image_path.exists():
+            raise ValueError(f"File {image_path} does not exist")
+        self.path = self.image_path.parent
+        self.name = self.image_path.stem
+        self.ext = self.image_path.suffix
         img = self.getOriginalCanvas()
         self.h_orig, self.w_orig = img.shape[:2]
         self.w, self.h = (self.w_orig, self.h_orig)
