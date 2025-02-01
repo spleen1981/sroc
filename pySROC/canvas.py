@@ -14,15 +14,12 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
-import os
-import cv2
+import concurrent.futures
+from itertools import product
 from pathlib import Path
 
+import cv2
 import matplotlib.pyplot as plt
-import concurrent.futures
-
-from itertools import product
-
 import numpy as np
 
 from .overlay import Rect
@@ -43,18 +40,58 @@ class RectCanvas():
         self.h_orig, self.w_orig = img.shape[:2]
         self.w, self.h = (self.w_orig, self.h_orig)
         self.rects = Rects()
+        self._rects_labels = []
+        self._rects_groups = []
 
-    def getOriginalCanvas(self, color=False, crop_to_viewport=False, show_rects=False):
+    @property
+    def rects_groups(self):
+        if len(self.rects) > len(self._rects_groups):
+            if not len(self._rects_groups):
+                next_index = 1
+            else:
+                next_index = max(self._rects_groups) + 1
+            for i in range(len(self._rects_groups), len(self.rects)):
+                self._rects_groups.append(next_index)
+        return self._rects_groups
+
+    @rects_groups.setter
+    def rects_groups(self, groups):
+        if not isinstance(groups, list):
+            raise ValueError("rects_groups must be a list")
+        groups_index = {}
+        this_index = 1
+        self._rects_groups = []
+        for group in groups:
+            if group not in groups_index:
+                groups_index[group] = this_index
+                this_index += 1
+            self._rects_groups.append(groups_index[group])
+
+    @property
+    def rects_labels(self):
+        if len(self.rects) > len(self._rects_labels):
+            for i in range(len(self._rects_labels), len(self.rects)):
+                self._rects_labels.append("")
+        return self._rects_labels
+
+    @rects_labels.setter
+    def rects_labels(self, labels):
+        if not isinstance(labels, list):
+            raise ValueError("rects_labels must be a list")
+        self._rects_labels = labels
+
+    def getOriginalCanvas(self, color=False, crop_to_viewport=False, show_rects=False, show_labels=False):
         if color:
             mode = cv2.IMREAD_COLOR
         else:
             mode = cv2.IMREAD_GRAYSCALE
         img = cv2.imread(self.image_path, mode)
 
-        return self.__rectDress(img, crop_to_viewport, show_rects)
+        return self.__rectDress(img, crop_to_viewport, show_rects, show_labels)
 
-    def getCurrentCanvas(self, extend=True, color=False, crop_to_viewport=False, show_rects=False):
-        img = self.getOriginalCanvas(color=color, crop_to_viewport=crop_to_viewport, show_rects=show_rects)
+    def getCurrentCanvas(self, extend=True, color=False, crop_to_viewport=False, show_rects=False, show_labels=False):
+        img = self.getOriginalCanvas(color=color, crop_to_viewport=crop_to_viewport, show_rects=show_rects,
+                                     show_labels=show_labels)
         if self.w != self.w_orig or self.h != self.h_orig:
             img = cv2.resize(img, (self.w, self.h), interpolation=cv2.INTER_AREA)
         if self.rotation:
@@ -69,16 +106,34 @@ class RectCanvas():
                 rot_height = self.h
             img = cv2.warpAffine(img, M, (rot_width, rot_height))
 
-        return self.__rectDress(img, crop_to_viewport, show_rects)
+        return self.__rectDress(img, crop_to_viewport, show_rects, show_labels)
 
-        return img
+    def __getDressColor(self, index, n):
+        colors = plt.colormaps.get_cmap('hsv')
+        color = colors(index / n)
+        rgb_color = tuple(int(c * 255) for c in color[:3])
+        return rgb_color
 
-    def __rectDress(self, img, crop_to_viewport=False, show_rects=False):
-        if show_rects:
+    def __rectDress(self, img, crop_to_viewport=False, show_rects=False, show_labels=False):
+        if show_rects and len(self.rects):
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            scale = 1
+            text_thk = 2
+            print(self.rects_groups)
+            print(self.rects_labels)
+            groups = max(self.rects_groups)
             for i in range(len(self.rects)):
+                color = self.__getDressColor(self.rects_groups[i], groups)
                 rect = self.rects.getRect(i)
-                img = cv2.rectangle(img, rect.topLeft(), rect.bottomRight(), (0, 255, 100), 2)
-            # plt.figure(figsize=(100, 100))
+                img = cv2.rectangle(img, rect.topLeft(), rect.bottomRight(), color, 2)
+
+                if show_labels:
+                    label_size, base_line = cv2.getTextSize(self.rects_labels[i], font, scale, text_thk)
+                    top = max(rect.ymin(), label_size[1] - base_line)
+                    left = min(rect.xmin(), img.shape[1] - label_size[0])
+                    cv2.rectangle(img, (left, top - label_size[1]),
+                                  (left + label_size[0], top + base_line), color, cv2.FILLED)
+                    cv2.putText(img, self.rects_labels[i], (left, top), font, scale, (0, 0, 0), text_thk)
 
         if crop_to_viewport:
             img = img[self.rects.mainRect.ymin():self.rects.mainRect.ymax(),
@@ -90,26 +145,6 @@ class RectCanvas():
 
     def currentCanvasSize(self):
         return self.getCurrentCanvas().shape[:2]
-
-    """
-    def plot(self, output_file=None):
-        image_color = cv2.cvtColor(self.getCurrentCanvas(), cv2.COLOR_GRAY2BGR)
-        overlay = image_color.copy()
-        alpha = 0.5
-        cv2.addWeighted(overlay, alpha, image_color, 1 - alpha, 0, image_color)
-
-        for rect in self.rects.to2Points():
-            pt1, pt2 = rect
-            cv2.rectangle(overlay, pt1, pt2, (255, 0, 0), 1)
-
-        outimg = cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB)
-        plt.imshow(outimg)
-        if not output_file is None:
-            _, _, ext = get_path_info(output_file)
-            plt.imsave(output_file, outimg, format=ext[1:], cmap="hot")
-        plt.show()
-
-    """
 
     def moveRectsFrom(self, rects):
         self.rects.moveRectsFrom(rects)
