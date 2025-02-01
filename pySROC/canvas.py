@@ -302,11 +302,15 @@ class CanvasTiler(RectCanvas):
 
     def saveTiles(self, output_path):
         img = self.getCurrentCanvas()
-        for x, y in product(range(0, self.h, self.tile_height), range(0, self.w, self.tile_width)):
-            box = (y, x, y + self.tile_height, x + self.tile_width)
-            out = os.path.join(output_path, self.__tileName(x, y))
-            img.crop(box).save(out)
-            # test_saved_file(out, True)
+
+        count = 0
+        for x, y in product(range(0, self.w, self.tile_width), range(0, self.h, self.tile_height)):
+            box = Rect().fromBox((x, y, x + self.tile_width, y + self.tile_height))
+            out = Path(output_path) / self.__tileName(x, y)
+            tile = img[box.ymin():box.ymax(), box.xmin():box.xmax()]
+            cv2.imwrite(out, tile)
+            count += 1
+        print(f"Sliced {count} tiles in {str(Path(output_path).resolve())}")
 
     def __testTileIndex(self, index_x, index_y):
         if not index_x in range(self.lenX()) or not index_y in range(self.lenY()):
@@ -327,18 +331,22 @@ class CanvasTiler(RectCanvas):
         tot_x_items = self.lenX()
         tot_y_items = self.lenY()
         new_im = np.zeros((tot_y_items * self.tile_height, tot_x_items * self.tile_width, 3), dtype=np.uint8)
-
-        for x, y in product(range(0, self.h, self.tile_height), range(0, self.w, self.tile_width)):
-            im = cv2.imread(os.path.join(tiles_path, self.__tileName(x, y) + self.ext))
-            new_im[x:x + self.tile_width, y:y + self.tile_height] = im
+        tiles_path = Path(tiles_path)
+        count = 0
+        for x, y in product(range(0, self.w, self.tile_width), range(0, self.h, self.tile_height)):
+            im = cv2.imread(tiles_path / f"{self.__tileName(x, y)}{self.ext}")
+            new_im[y:y + self.tile_height, x:x + self.tile_width] = im
+            count += 1
 
         if restore_original_size == True:
             new_im = cv2.resize(new_im, (self.w_orig, self.h_orig), interpolation=cv2.INTER_LANCZOS4)
 
-        file_out = os.path.join(output_path, f'{self.name}{self.ext}')
-        cv2.imwrite('output_image.jpg', new_im)
-        # test_saved_file(file_out)
-        return file_out
+        file_out = Path(output_path) / f"{self.name}_joined{self.ext}"
+
+        cv2.imwrite(file_out, new_im)
+        print(f"Joined {count} tiles in {str(Path(file_out).resolve())}")
+
+        return str(file_out)
 
     def tilesCrawler(self, crawler_callback, threads=1, status_callback=None, color=False,
                      results_on_original_canvas=True):
