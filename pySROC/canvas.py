@@ -119,8 +119,6 @@ class RectCanvas():
             font = cv2.FONT_HERSHEY_SIMPLEX
             scale = 1
             text_thk = 2
-            print(self.rects_groups)
-            print(self.rects_labels)
             groups = max(self.rects_groups)
             for i in range(len(self.rects)):
                 color = self.__getDressColor(self.rects_groups[i], groups)
