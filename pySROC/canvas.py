@@ -168,10 +168,6 @@ class RectCanvas():
 
 
 class RectScanner(RectCanvas):
-    def __init__(self, image_path):
-
-        super().__init__(image_path)
-
     def __groupPointsToLines(self, scan_coor):
         lines = []
         image = self.getCurrentCanvas()
