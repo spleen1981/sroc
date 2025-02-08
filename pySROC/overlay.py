@@ -15,39 +15,17 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 import math
+import numbers
 
 
 class Rect:
-    def __init__(self, xmax=0, xmin=0, ymax=0, ymin=0, width=0, height=0, x0=0, y0=0, x1=0, y1=0, x2=0, y2=0, x3=0,
-                 y3=0, xref=1, yref=1, fractions=False):
-        x = None
-        y = None
-        if xmax and xmin and ymax and ymin:
-            x = (xmin, xmax)
-            y = (ymin, ymax)
-        elif width and height:
-            if xmin and ymin:
-                x = (xmin, xmin + width)
-                y = (ymin, ymin + height)
-            elif xmax and ymax:
-                if width > xmax:
-                    raise ValueError(f"xmax is lower than width")
-                if height > ymax:
-                    raise ValueError(f"ymax is lower than height")
-                x = (xmax - width, xmax)
-                y = (ymax - height, ymax)
-            else:
-                x = (0, width)
-                y = (0, height)
-        elif x0 and y0 and x1 and y1 and x2 and x3 and y3:
-            x = (x0, x1, x2, x3)
-            y = (y0, y1, y2, y3)
+    def __init__(self, points=None, box=None, order='xy', xref=None, yref=None, fractions=False):
+        if box:
+            self.fromBox(box=box, order=order, xref=xref, yref=yref, fractions=fractions)
+        elif points:
+            self.fromPoints(points=points, order=order, xref=xref, yref=yref, fractions=fractions)
         else:
-            x = (0, 0)
-            y = (0, 0)
-            fractions = True
-
-        self.__setExtremes(x, y, xref, yref, fractions)
+            self.fromBox((0, 0, 0, 0,))
 
     def __str__(self):
         return f"SRect (top_left:[{self.xmin()}, {self.ymin()}] bottom_right:[{self.xmax()}, {self.ymax()}] size:[{self.width()}, {self.height()}] viewport:[{self.xref}, {self.yref}])"
