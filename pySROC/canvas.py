@@ -27,15 +27,26 @@ from .overlay import Rects
 
 
 class RectCanvas():
-    def __init__(self, image_path):
+    def __init__(self, image_path=None, image_np=None):
         # TODO double check rotation is actually needed
         self.rotation = 0
-        self.image_path = Path(image_path)
-        if not self.image_path.exists():
-            raise ValueError(f"File {image_path} does not exist")
-        self.path = self.image_path.parent
-        self.name = self.image_path.stem
-        self.ext = self.image_path.suffix
+        self.originalCanvas = None
+
+        if not image_path is None:
+            self.image_path = Path(image_path)
+            if not self.image_path.exists():
+                raise ValueError(f"File {image_path} does not exist")
+            self.name = self.image_path.stem
+            self.ext = self.image_path.suffix
+        else:
+            if not image_np is None:
+                self.originalCanvas = image_np
+                self.image_path = None
+                self.name = 'noname'
+                self.ext = 'png'
+            else:
+                raise ValueError(f"No image provided")
+
         img = self.getOriginalCanvas()
         self.h_orig, self.w_orig = img.shape[:2]
         self.w, self.h = (self.w_orig, self.h_orig)
@@ -81,11 +92,19 @@ class RectCanvas():
         self._rects_labels = labels
 
     def getOriginalCanvas(self, color=False, crop_to_viewport=False, show_rects=False, show_labels=False):
-        if color:
-            mode = cv2.IMREAD_COLOR
+        if self.originalCanvas:
+            if color and len(self.originalCanvas.shape) == 2:
+                img = cv2.cvtColor(self.originalCanvas, cv2.COLOR_GRAY2BGR)
+            elif not color and len(self.originalCanvas.shape) == 3 and self.originalCanvas.shape[2] == 3:
+                img = cv2.cvtColor(self.originalCanvas, cv2.COLOR_BGR2GRAY)
+            else:
+                img = self.originalCanvas
         else:
-            mode = cv2.IMREAD_GRAYSCALE
-        img = cv2.imread(self.image_path, mode)
+            if color:
+                mode = cv2.IMREAD_COLOR
+            else:
+                mode = cv2.IMREAD_GRAYSCALE
+            img = cv2.imread(self.image_path, mode)
 
         return self.__rectDress(img, crop_to_viewport, show_rects, show_labels)
 
@@ -237,14 +256,15 @@ class RectScanner(RectCanvas):
 
 
 class CanvasTiler(RectCanvas):
-    def __init__(self, filename, rotation=0, tiles_target_no=64, tile_width=640, tile_height=640,
+    def __init__(self, image_path=None, image_np=None, rotation=0, tiles_target_no=64, tile_width=640, tile_height=640,
                  force_horizontal=True):
         self.tile_width = tile_width
         self.tile_height = tile_height
         # self.force_horizontal = force_horizontal
         self.tiles_target_no = tiles_target_no
-        super().__init__(filename)
-        self.__preLoadedCanvas = None
+        super().__init__(image_path=image_path, image_np=image_np)
+
+        self.__cachedCurrentCanvas = None
 
         if self.w % self.tile_width:
             self.w = int(self.w + (self.tile_width - self.w % self.tile_width))
@@ -317,10 +337,10 @@ class CanvasTiler(RectCanvas):
     def getTile(self, index_x, index_y):
         self.__testTileIndex(index_x, index_y)
 
-        if self.__preLoadedCanvas is None:
+        if self.__cachedCurrentCanvas is None:
             canvas = self.getCurrentCanvas()
         else:
-            canvas = self.__preLoadedCanvas
+            canvas = self.__cachedCurrentCanvas
 
         return canvas[index_y * self.tile_height:(index_y + 1) * self.tile_height,
                index_x * self.tile_width:(index_x + 1) * self.tile_width]
@@ -348,7 +368,7 @@ class CanvasTiler(RectCanvas):
 
     def tilesCrawler(self, crawler_callback, threads=1, status_callback=None, color=False,
                      results_on_original_canvas=True):
-        self.__preLoadedCanvas = self.getCurrentCanvas(color=color)
+        self.__cachedCurrentCanvas = self.getCurrentCanvas(color=color)
         tile = self.getTile
         crawler_counter = 0
 
@@ -381,5 +401,5 @@ class CanvasTiler(RectCanvas):
                     else:
                         combined_results[key] = value
 
-        self.__preLoadedCanvas = None
+        self.__cachedCurrentCanvas = None
         return combined_results
