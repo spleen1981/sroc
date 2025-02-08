@@ -56,9 +56,42 @@ class Rect:
         self.__xmax = xmax / xref
         self.__ymax = ymax / yref
 
+    def __validatePoints(self, points):
+        res = True
+        def test(item):
+            if not isinstance(item, (list, tuple)):
+                return False
+            if len(item) < 2:
+                return False
+            return True
+
+        if not test(points):
+            res = False
+        for point in points:
+            if not test(point):
+                res = False
+            for coor in point:
+                if not isinstance(coor, numbers.Number):
+                    res = False
+        if not res:
+            raise ValueError("Invalid points provided")
+
+    def __validateBox(self, box):
+        res = True
+        if not isinstance(box, (list, tuple)):
+            return False
+        if len(box) < 4:
+            return False
+        for coor in box:
+            if not isinstance(coor, numbers.Number):
+                res = False
+
+        if not res:
+            raise ValueError("Invalid points structure provided")
+
     def __validateOrder(self, order):
         if order not in ['xy', 'yx', 'xx', 'yy']:
-            raise ValueError(f"Invalid coordinate order requested")
+            raise ValueError("Invalid coordinate order requested")
 
     def __validateSequence(self, sequence):
         if sequence not in ['minmax', 'maxmin']:
@@ -83,6 +116,7 @@ class Rect:
 
     def fromBox(self, box=(0, 0, 0, 0), order='xy', xref=None, yref=None, fractions=False):
         self.__validateOrder(order)
+        self.__validateBox(box)
         if order == 'xy':
             x = (box[0], box[2])
             y = (box[1], box[3])
@@ -101,6 +135,7 @@ class Rect:
     def fromPoints(self, points=((0, 0), (0, 0), (0, 0), (0, 0)), order='xy', xref=None, yref=None, fractions=False):
         # TODO: restrict more valid orders for points
         self.__validateOrder(order)
+        self.__validatePoints(points)
         index_x = order == 'yx'
 
         x = tuple(point[index_x] for point in points)
