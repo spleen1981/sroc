@@ -458,11 +458,9 @@ class Rects:
     def moveRectsFrom(self, rects):
         startLen = len(rects)
         i = 0
-        while i < len(rects):
+        for i in range(len(rects) - 1, -1, -1):
             if self.addRect(Rect().fromBox(rects.rects[i])):
                 rects.rects.pop(i)
-            else:
-                i += 1
         return startLen > len(rects)
 
     def __getRect(self, index, then_remove=False):
