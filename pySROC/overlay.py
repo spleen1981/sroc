@@ -400,6 +400,7 @@ class Rects:
             'to4Points': 'to4Points',
         }
         self.rects = []
+        #self._rects_lookup = {'x': {'min': [], 'rects_idx': []}, 'y': {'min': [], 'rects_idx': []}}
 
     def __getattr__(self, method):
         if method in self.inboundMapping:
@@ -436,11 +437,13 @@ class Rects:
     def __len__(self):
         return len(self.rects)
 
+    """
     def updateViewport(self):
         if len(self.rects):
             self.mainRect = Rect().fromBox(self.rects[0])
         for rect in self.rects:
             self.mainRect.union(Rect().fromBox(rect))
+    """
 
     def validateRect(self, rect):
         self.tempRect._Rect__validateRect(rect)
@@ -448,12 +451,37 @@ class Rects:
     def addRect(self, rect):
         self.validateRect(rect)
         self.rects.append((rect.toBox()))
+
+        # extend mainRect
         if self.mainRect is None:
             self.mainRect = Rect().fromBox(rect.toBox())
         else:
             self.mainRect.union(rect)
         # self.updateViewport()
         return True
+    """
+    def add_lookup(self, rect, idx=None):
+        def _get_target_idx(coor, coor_min):
+            res=None
+            len_list=len(self._rects_lookup[coor]['rects_idx'])
+            for i in range(len_list):
+                if coor_min<self._rects_lookup[coor]['min'][i]:
+                    res=i
+                    break
+            if res is None: res=len_list
+            return len_list
+
+        def _add_to_lookup(coor, coor_min, idx):
+            target_idx=_get_target_idx(coor, coor_min)
+            if idx is None:
+                idx= len(self.rects)-1
+            self._rects_lookup[coor]['min'].insert(target_idx, coor_min)
+            self._rects_lookup[coor]['rects_idx'].insert(target_idx, idx)
+
+        _add_to_lookup('x',rect.xmin(), idx)
+        _add_to_lookup('y', rect.ymin(), idx)
+    """
+
 
     def moveRectsFrom(self, rects):
         startLen = len(rects)
@@ -483,10 +511,72 @@ class CactusRects(Rects):
         super().addRect(seedRect)
         # self.seed = seedRect
         self.tolerance = tolerance
+        #self.roi_size = 50
 
     def addRect(self, rect):
-        for branch in self.rects:
-            if rect.getDistFromRect(self.tempRect.fromBox(branch), reference="border") <= self.tolerance:
+        # See if new rect is close enough to global boundaries
+        dir, dist = self.mainRect.getDistFromRect(rect, reference="border")
+        # print(f"self.mainRect {self.mainRect} rect {rect} dist {dist}")
+        if dist > self.tolerance:
+            return False
+        """
+        # Exclude internal boxes depending on external rect approach direction
+        boundary_rects = []
+        boundary_rects_x = []
+
+        xmin=rect.xmin()
+        xmin_min=xmin-(self.tolerance+self.roi_size)
+        xmin_max=xmin+(self.tolerance + self.roi_size)
+        ymin=rect.ymin()
+        ymin_min=ymin-(self.tolerance+self.roi_size)
+        ymin_max=ymin+(self.tolerance+self.roi_size)
+
+        for i in range(len(self._rects_lookup['x']['min'])):
+            this_idx=self._rects_lookup['y']['rects_idx'][i]
+            this_coormin=self._rects_lookup['y']['min'][i]
+            if not xmin_min > this_coormin and not xmin_max < this_coormin:
+                boundary_rects_x.append(this_idx)
+
+        for i in range(len(self._rects_lookup['y']['min'])):
+            this_idx=self._rects_lookup['y']['rects_idx'][i]
+            this_coormin=self._rects_lookup['y']['min'][i]
+            if not ymin_min > this_coormin and not ymin_max < this_coormin and this_idx in boundary_rects_x:
+                boundary_rects.append(self.rects[this_idx])
+
+
+        """
+
+        # print(boundary_rects)
+        boundary_rects=[]
+        xmin=self.mainRect.xmin()
+        ymin=self.mainRect.ymin()
+        xmax=self.mainRect.xmax()
+        ymax=self.mainRect.ymax()
+        boundary_rects+=[rect for rect in self.rects if rect[0] ==xmin]
+        boundary_rects += [rect for rect in self.rects if rect[1] == ymin]
+        boundary_rects += [rect for rect in self.rects if rect[2] == xmax]
+        boundary_rects += [rect for rect in self.rects if rect[3] == ymax]
+        """
+        if dir[0] > 0:
+            for i in range(len(boundary_rects)-1, -1, -1):
+                if self.mainRect.xmax()-boundary_rects[i][1]>self.tolerance:
+                    del(boundary_rects[i])
+        elif dir[0] < 0:
+            for i in range(len(boundary_rects)-1, -1, -1):
+                if boundary_rects[i][0]-self.mainRect.xmin()>self.tolerance:
+                    del(boundary_rects[i])
+        if dir[1] > 0:
+            for i in range(len(boundary_rects)-1, -1, -1):
+                if self.mainRect.ymax()-boundary_rects[i][3]>self.tolerance:
+                    del(boundary_rects[i])
+        elif dir[1] < 0:
+            for i in range(len(boundary_rects)-1, -1, -1):
+                if boundary_rects[i][2]-self.mainRect.ymin()>self.tolerance:
+                    del(boundary_rects[i])
+        """
+        for branch in boundary_rects:
+            _, rect_dist = rect.getDistFromRect(self.tempRect.fromBox(branch), reference="border")
+            if rect_dist <= self.tolerance:
                 super().addRect(rect)
                 return True
         return False
