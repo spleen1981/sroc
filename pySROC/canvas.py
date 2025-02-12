@@ -92,7 +92,7 @@ class RectCanvas():
         self._rects_labels = labels
 
     def getOriginalCanvas(self, color=False, crop_to_viewport=False, show_rects=False, show_labels=False):
-        if self.originalCanvas:
+        if not self.originalCanvas is None:
             if color and len(self.originalCanvas.shape) == 2:
                 img = cv2.cvtColor(self.originalCanvas, cv2.COLOR_GRAY2BGR)
             elif not color and len(self.originalCanvas.shape) == 3 and self.originalCanvas.shape[2] == 3:
