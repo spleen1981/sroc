@@ -58,6 +58,7 @@ class Rect:
 
     def __validatePoints(self, points):
         res = True
+
         def test(item):
             if not isinstance(item, (list, tuple)):
                 return False
@@ -349,28 +350,40 @@ class Rect:
 
     def getDistFromRect(self, rect, reference="border"):
         self.__validateRect(rect)
+
+        x_dir=0
+        y_dir=0
+
         if reference == 'center':
             x0, y0 = rect.center()
             x1, y1 = self.center()
         elif reference == 'border':
             x0 = 0
             y0 = 0
+            #new rect on the right, dir positive
             if self.xmax() < rect.xmin():
                 x1 = rect.xmin() - self.xmax()
+                x_dir=1
+            # new rect on the left, dir negative
             elif self.xmin() > rect.xmax():
                 x1 = self.xmin() - rect.xmax()
+                x_dir=-1
             else:
                 x1 = 0
+            # new rect on the top, dir positive
             if self.ymax() < rect.ymin():
                 y1 = rect.ymin() - self.ymax()
+                y_dir=1
+            # new rect on the bottom, dir negative
             elif self.ymin() > rect.ymax():
                 y1 = self.ymin() - rect.ymax()
+                y_dir=-1
             else:
                 y1 = 0
         else:
             raise ValueError(f"Invalid reference to calculate distance")
 
-        return self.__pointsDistance(x0, y0, x1, y1)
+        return (x_dir, y_dir), self.__pointsDistance(x0, y0, x1, y1)
 
 
 class Rects:
