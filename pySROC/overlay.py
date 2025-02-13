@@ -333,8 +333,18 @@ class Rect:
         else:
             return int(y), int(x)
 
-    def __pointsDistance(self, x0=0, y0=0, x1=0, y1=0):
-        return int(math.sqrt(abs(x1 - x0) ** 2 + abs(y1 - y0) ** 2))
+    def __pointsDistance(self, x0=0, y0=0, x1=0, y1=0, type="cartesian"):
+        if type=="cartesian":
+            squares=(x1 - x0) ** 2 + (y1 - y0) ** 2
+            res=int(math.sqrt(squares))
+        elif type=="cartesian_squares":
+            res = (x1 - x0) ** 2 + (y1 - y0) ** 2
+        elif type=="manhattan":
+            res = abs(x1 - x0) + abs(y1 - y0)
+        else:
+            raise ValueError("Unknown distance type specified")
+
+        return res
 
     # OPERATIONS WITH OTHER RECTS
     def union(self, rect):
@@ -348,7 +358,7 @@ class Rect:
         self.__setExtremes(x=x, y=y, xref=xref, yref=yref)
         return self
 
-    def getDistFromRect(self, rect, reference="border"):
+    def getDistFromRect(self, rect, reference="border", type="cartesian"):
         self.__validateRect(rect)
 
         x_dir=0
@@ -383,7 +393,7 @@ class Rect:
         else:
             raise ValueError(f"Invalid reference to calculate distance")
 
-        return (x_dir, y_dir), self.__pointsDistance(x0, y0, x1, y1)
+        return (x_dir, y_dir), self.__pointsDistance(x0, y0, x1, y1, type=type)
 
 
 class Rects:
@@ -515,7 +525,7 @@ class CactusRects(Rects):
 
     def addRect(self, rect):
         # See if new rect is close enough to global boundaries
-        dir, dist = self.mainRect.getDistFromRect(rect, reference="border")
+        dir, dist = self.viewPort.getDistFromRect(rect, reference="border", type="cartesian_squares")
         # print(f"self.mainRect {self.mainRect} rect {rect} dist {dist}")
         if dist > self.tolerance:
             return False
