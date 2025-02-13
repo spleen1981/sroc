@@ -551,19 +551,20 @@ class Rects:
 
 
 class CactusRects(Rects):
-    def __init__(self, seedRect, tolerance=5):
+    def __init__(self, seedRect, tolerance=5, strategy="full"):
         super().__init__()
         super().addRect(seedRect)
         # self.seed = seedRect
         self.tolerance = tolerance
-        #self.roi_size = 50
+        # self.roi_size = 50
+        self.strategy = strategy
 
     def addRect(self, rect, update_viewport=True):
-        square_tolerance=self.tolerance**2
+        square_tolerance = self.tolerance ** 2
         # See if new rect is close enough to global boundaries
         dir, dist = self.viewPort.getDistFromRect(rect, reference="border", type="cartesian_squares")
         # print(f"self.mainRect {self.mainRect} rect {rect} dist {dist}")
-        if dist > self.tolerance:
+        if dist > square_tolerance:
             return False
         """
         # Exclude internal boxes depending on external rect approach direction
@@ -593,38 +594,37 @@ class CactusRects(Rects):
         """
 
         # print(boundary_rects)
-        boundary_rects=[]
-        xmin=self.mainRect.xmin()
-        ymin=self.mainRect.ymin()
-        xmax=self.mainRect.xmax()
-        ymax=self.mainRect.ymax()
-        boundary_rects+=[rect for rect in self.rects if rect[0] ==xmin]
-        boundary_rects += [rect for rect in self.rects if rect[1] == ymin]
-        boundary_rects += [rect for rect in self.rects if rect[2] == xmax]
-        boundary_rects += [rect for rect in self.rects if rect[3] == ymax]
+        boundary_rects = []
+        xmin = self.viewPort.xmin()
+        ymin = self.viewPort.ymin()
+        xmax = self.viewPort.xmax()
+        ymax = self.viewPort.ymax()
+
+        if self.strategy == 'full':
+            boundary_rects = [r for r in self.rects]
+        elif self.strategy == 'boundaries_only':
+            for r in self.rects:
+                if r[0] == xmin or r[1] == ymin or r[2] == xmax or r[3] == ymax:
+                    boundary_rects.append(r)
+        else:
+            raise ValueError("Unknown merge strategy")
+
         """
-        if dir[0] > 0:
-            for i in range(len(boundary_rects)-1, -1, -1):
-                if self.mainRect.xmax()-boundary_rects[i][1]>self.tolerance:
-                    del(boundary_rects[i])
-        elif dir[0] < 0:
-            for i in range(len(boundary_rects)-1, -1, -1):
-                if boundary_rects[i][0]-self.mainRect.xmin()>self.tolerance:
-                    del(boundary_rects[i])
-        if dir[1] > 0:
-            for i in range(len(boundary_rects)-1, -1, -1):
-                if self.mainRect.ymax()-boundary_rects[i][3]>self.tolerance:
-                    del(boundary_rects[i])
-        elif dir[1] < 0:
-            for i in range(len(boundary_rects)-1, -1, -1):
-                if boundary_rects[i][2]-self.mainRect.ymin()>self.tolerance:
-                    del(boundary_rects[i])
+        print(dir)
+        print(dist)
+        for r in self.rects:
+            if dir[0] > 0 and r[2] == xmax or dir[0] < 0 and r[0] == xmin:
+                boundary_rects.append(r)
+                continue
+
+            if dir[1] > 0 and r[1] == ymin or dir[1] < 0 and r[3] == ymax:
+                boundary_rects.append(r)
+                continue
         """
 
-
-
-        for i in range(len(boundary_rects)-1,-1,-1):
-            _, rect_dist = rect.getDistFromRect(self.tempRect.fromBox(boundary_rects[i]), reference="border", type="cartesian_squares")
+        for i in range(len(boundary_rects) - 1, -1, -1):
+            _, rect_dist = rect.getDistFromRect(self.tempRect.fromBox(boundary_rects[i]), reference="border",
+                                                type="cartesian_squares")
             if rect_dist <= square_tolerance:
                 super().addRect(rect, update_viewport=update_viewport)
                 return True
