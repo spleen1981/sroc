@@ -398,7 +398,7 @@ class Rect:
 
 class Rects:
     def __init__(self):
-        self.mainRect = None
+        self.viewPort = None
         self.tempRect = Rect()
         self.inboundMapping = {
             'fromBox': 'fromBox',
@@ -421,7 +421,8 @@ class Rects:
                     rects = args[0]
                     args = args[1:]
                     for rect in rects:
-                        self.addRect(inboundMethod(rect, *args, **kwargs))
+                        self.addRect(inboundMethod(rect, *args, **kwargs),update_viewport=False)
+                    self.updateViewport()
                     return self
                 raise AttributeError(
                     f"'{self.__class__.__name__}'Invalid arguments, list of rectangles is to be provided.")
@@ -442,32 +443,27 @@ class Rects:
             raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{method}'")
 
     def __str__(self):
-        return f"SRects ({len(self.rects)} Rects, overall top_left:[{self.mainRect.xmin()}, {self.mainRect.ymin()}] overall bottom_right:[{self.mainRect.xmax()}, {self.mainRect.ymax()}] overall size:[{self.mainRect.width()}, {self.mainRect.height()}] viewport:[{self.mainRect.xref}, {self.mainRect.yref}])"
+        return f"SRects ({len(self.rects)} Rects, overall top_left:[{self.viewPort.xmin()}, {self.viewPort.ymin()}] overall bottom_right:[{self.viewPort.xmax()}, {self.viewPort.ymax()}] overall size:[{self.viewPort.width()}, {self.viewPort.height()}] viewport:[{self.viewPort.xref}, {self.viewPort.yref}])"
 
     def __len__(self):
         return len(self.rects)
 
-    """
     def updateViewport(self):
         if len(self.rects):
-            self.mainRect = Rect().fromBox(self.rects[0])
-        for rect in self.rects:
-            self.mainRect.union(Rect().fromBox(rect))
-    """
+            self.viewPort=Rect(box=(min([rect[0] for rect in self.rects]),min([rect[1] for rect in self.rects]),max([rect[2] for rect in self.rects]),max([rect[3] for rect in self.rects])))
 
     def validateRect(self, rect):
         self.tempRect._Rect__validateRect(rect)
 
-    def addRect(self, rect):
-        self.validateRect(rect)
+    def addRect(self, rect, update_viewport=True):
         self.rects.append((rect.toBox()))
 
-        # extend mainRect
-        if self.mainRect is None:
-            self.mainRect = Rect().fromBox(rect.toBox())
-        else:
-            self.mainRect.union(rect)
-        # self.updateViewport()
+        if update_viewport:
+            # extend mainRect
+            if self.viewPort is None:
+                self.viewPort = Rect().fromBox(rect.toBox())
+            else:
+                self.viewPort.union(rect)
         return True
     """
     def add_lookup(self, rect, idx=None):
@@ -497,15 +493,20 @@ class Rects:
         startLen = len(rects)
         i = 0
         for i in range(len(rects) - 1, -1, -1):
-            if self.addRect(Rect().fromBox(rects.rects[i])):
+            if self.addRect(Rect().fromBox(rects.rects[i]), update_viewport=False):
                 rects.rects.pop(i)
-        return startLen > len(rects)
+
+        if startLen > len(rects):
+            self.updateViewport()
+            return True
+        return False
 
     def __getRect(self, index, then_remove=False):
         # if index in range(len(self)):
         rect = Rect().fromBox(self.rects[index])
         if then_remove:
             del (self.rects[index])
+            self.updateViewport()
         return rect
 
     def getRect(self, index):
@@ -523,7 +524,8 @@ class CactusRects(Rects):
         self.tolerance = tolerance
         #self.roi_size = 50
 
-    def addRect(self, rect):
+    def addRect(self, rect, update_viewport=True):
+        square_tolerance=self.tolerance**2
         # See if new rect is close enough to global boundaries
         dir, dist = self.viewPort.getDistFromRect(rect, reference="border", type="cartesian_squares")
         # print(f"self.mainRect {self.mainRect} rect {rect} dist {dist}")
@@ -584,10 +586,13 @@ class CactusRects(Rects):
                 if boundary_rects[i][2]-self.mainRect.ymin()>self.tolerance:
                     del(boundary_rects[i])
         """
-        for branch in boundary_rects:
-            _, rect_dist = rect.getDistFromRect(self.tempRect.fromBox(branch), reference="border")
-            if rect_dist <= self.tolerance:
-                super().addRect(rect)
+
+
+
+        for i in range(len(boundary_rects)-1,-1,-1):
+            _, rect_dist = rect.getDistFromRect(self.tempRect.fromBox(boundary_rects[i]), reference="border", type="cartesian_squares")
+            if rect_dist <= square_tolerance:
+                super().addRect(rect, update_viewport=update_viewport)
                 return True
         return False
 
