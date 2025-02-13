@@ -488,6 +488,40 @@ class Rects:
         _add_to_lookup('y', rect.ymin(), idx)
     """
 
+    def simplifyRects(self, tolerance=5):
+        if len(self.rects):
+            rect_new=[self.rects.pop(0)]
+        else:
+            rect_new=[]
+        square_tolerance=tolerance**2
+
+        def can_merge(test_coor_idx, align_coor_idx):
+            test_align_min=(rect_new[-1][test_coor_idx[0]] - this_rect[test_coor_idx[0]]) ** 2 < square_tolerance
+            test_align_max=(rect_new[-1][test_coor_idx[1]] - this_rect[test_coor_idx[1]]) ** 2 < square_tolerance
+            if test_align_min and test_align_max:
+                test_margin1=(rect_new[-1][align_coor_idx[0]] - this_rect[align_coor_idx[1]]) ** 2 < square_tolerance
+                test_margin2=(rect_new[-1][align_coor_idx[1]] - this_rect[align_coor_idx[0]]) ** 2 < square_tolerance
+                if test_margin1 or test_margin2:
+                    return True
+            return False
+
+        while len(self.rects):
+            reset=True
+            while reset==True:
+                reset = False
+                for j in range(len(self.rects)-1, -1, -1):
+                    this_rect=self.rects.pop(j)
+                    if not can_merge((1,3), (0,2)) and not can_merge((0,2), (1,3)):
+                        rect_new.append(this_rect)
+                    else:
+                        rect_new[-1] = [min(this_rect[0], rect_new[-1][0]), min(this_rect[1], rect_new[-1][1]),
+                                        max(this_rect[2], rect_new[-1][2]), max(this_rect[3], rect_new[-1][3])]
+                        reset=True
+                        break
+        self.rects=rect_new
+        self.updateViewport()
+        return self
+
 
     def moveRectsFrom(self, rects):
         startLen = len(rects)
