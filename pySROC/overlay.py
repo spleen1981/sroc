@@ -16,132 +16,60 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 import math
 import numbers
+import numpy as np
 
 
 class Rect:
     def __init__(self, points=None, box=None, order='xy', xref=None, yref=None, fractions=False):
         if box:
-            self.fromBox(box=box, order=order, xref=xref, yref=yref, fractions=fractions)
+            self.fromBox(box, order, xref, yref, fractions)
         elif points:
-            self.fromPoints(points=points, order=order, xref=xref, yref=yref, fractions=fractions)
+            self.fromPoints(points, order, xref, yref, fractions)
         else:
-            self.fromBox((0, 0, 0, 0,))
+            self.fromBox((0, 0, 0, 0))
 
     def __str__(self):
         return f"SRect (top_left:[{self.xmin()}, {self.ymin()}] bottom_right:[{self.xmax()}, {self.ymax()}] size:[{self.width()}, {self.height()}] viewport:[{self.xref}, {self.yref}])"
 
     def __setExtremes(self, x, y, xref=None, yref=None, fractions=False):
-        xmax = max(x)
-        ymax = max(y)
-        if not xref:
-            if xmax:
-                xref = xmax
-            else:
-                xref = 1
-
-        if not yref:
-            if ymax:
-                yref = ymax
-            else:
-                yref = 1
-
-        self.xref = xref
-        self.yref = yref
+        x = np.array(x)
+        y = np.array(y)
+        xmax, ymax = np.max(x), np.max(y)
+        xref = xref or (xmax if xmax else 1)
+        yref = yref or (ymax if ymax else 1)
+        self.xref, self.yref = xref, yref
         if fractions:
-            xref = 1
-            yref = 1
-
-        self.__xmin = min(x) / xref
-        self.__ymin = min(y) / yref
-        self.__xmax = xmax / xref
-        self.__ymax = ymax / yref
-
-    def __validatePoints(self, points):
-        res = True
-
-        def test(item):
-            if not isinstance(item, (list, tuple)):
-                return False
-            if len(item) < 2:
-                return False
-            return True
-
-        if not test(points):
-            res = False
-        for point in points:
-            if not test(point):
-                res = False
-            for coor in point:
-                if not isinstance(coor, numbers.Number):
-                    res = False
-        if not res:
-            raise ValueError("Invalid points provided")
-
-    def __validateBox(self, box):
-        res = True
-        if not isinstance(box, (list, tuple)):
-            return False
-        if len(box) < 4:
-            return False
-        for coor in box:
-            if not isinstance(coor, numbers.Number):
-                res = False
-
-        if not res:
-            raise ValueError("Invalid points structure provided")
-
-    def __validateOrder(self, order):
-        if order not in ['xy', 'yx', 'xx', 'yy']:
-            raise ValueError("Invalid coordinate order requested")
-
-    def __validateSequence(self, sequence):
-        if sequence not in ['minmax', 'maxmin']:
-            raise ValueError(f"Invalid coordinate sequence requested")
-
-    def __validateRect(self, rect):
-        if not isinstance(rect, type(self)):
-            raise ValueError(f"Rectangle is not a {type(self)} instance")
+            xref, yref = 1, 1
+        self.__xmin, self.__ymin = np.min(x) / xref, np.min(y) / yref
+        self.__xmax, self.__ymax = xmax / xref, ymax / yref
 
     def scaleReference(self, xref, yref):
         self.__xmin = min(1, self.__xmin * self.xref / xref)
         self.__xmax = min(1, self.__xmax * self.xref / xref)
         self.__ymin = min(1, self.__ymin * self.yref / yref)
         self.__ymax = min(1, self.__ymax * self.yref / yref)
-
-        self.xref = xref
-        self.yref = yref
+        self.xref, self.yref = xref, yref
 
     def setReference(self, xref, yref):
-        self.xref = xref
-        self.yref = yref
+        self.xref, self.yref = xref, yref
 
     def fromBox(self, box=(0, 0, 0, 0), order='xy', xref=None, yref=None, fractions=False):
-        self.__validateOrder(order)
-        self.__validateBox(box)
         if order == 'xy':
-            x = (box[0], box[2])
-            y = (box[1], box[3])
+            x, y = (box[0], box[2]), (box[1], box[3])
         elif order == 'yx':
-            x = (box[1], box[3])
-            y = (box[0], box[2])
+            x, y = (box[1], box[3]), (box[0], box[2])
         elif order == 'xx':
-            x = (box[0], box[1])
-            y = (box[2], box[3])
+            x, y = (box[0], box[1]), (box[2], box[3])
         elif order == 'yy':
-            x = (box[2], box[3])
-            y = (box[0], box[1])
+            x, y = (box[2], box[3]), (box[0], box[1])
+
         self.__setExtremes(x, y, xref, yref, fractions)
         return self
 
     def fromPoints(self, points=((0, 0), (0, 0), (0, 0), (0, 0)), order='xy', xref=None, yref=None, fractions=False):
-        # TODO: restrict more valid orders for points
-        self.__validateOrder(order)
-        self.__validatePoints(points)
         index_x = order == 'yx'
-
         x = tuple(point[index_x] for point in points)
         y = tuple(point[not index_x] for point in points)
-
         self.__setExtremes(x, y, xref, yref, fractions)
         return self
 
@@ -165,8 +93,7 @@ class Rect:
 
     def rotate(self, rotation, xr=0, yr=0, fractions=False):
         if rotation % 90:
-            raise ValueError(f"Multiple of 90° are only accepted for straight rectangles")
-
+            raise ValueError("Multiple of 90° are only accepted for straight rectangles")
         rad = rotation * math.pi / 180
         if not fractions:
             xr /= self.xref
@@ -180,56 +107,26 @@ class Rect:
 
         x = (rotate_x(self.__xmin, self.__ymin), rotate_x(self.__xmax, self.__ymax))
         y = (rotate_y(self.__xmin, self.__ymin), rotate_y(self.__xmax, self.__ymax))
-
-        # if min(x) < 0 or min(y) < 0:
-        #    raise ValueError(f"Requested rotation gives negative coordinates")
-        # TODO check if need to rotate also xref yref
         self.__setExtremes(x, y, self.xref, self.yref, True)
         return self
 
     def addOffset(self, offset_x=0, offset_y=0, xref=None, yref=None, fractions=False):
-        if fractions:
-            xmin = self.__xmin
-            xmax = self.__xmax
-            ymin = self.__ymin
-            ymax = self.__ymax
-        else:
-            xmin = self.xmin()
-            xmax = self.xmax()
-            ymin = self.ymin()
-            ymax = self.ymax()
-
-        self.__setExtremes((xmin + offset_x, xmax + offset_x),
-                           (ymin + offset_y, ymax + offset_y),
-                           xref, yref, fractions)
+        xmin, xmax = (self.__xmin, self.__xmax) if fractions else (self.xmin(), self.xmax())
+        ymin, ymax = (self.__ymin, self.__ymax) if fractions else (self.ymin(), self.ymax())
+        self.__setExtremes((xmin + offset_x, xmax + offset_x), (ymin + offset_y, ymax + offset_y), xref, yref,
+                           fractions)
         return self
 
     def addScaleFactor(self, factor_x=1, factor_y=1, xref=None, yref=None, fractions=False):
-        if fractions:
-            xmin = self.__xmin
-            xmax = self.__xmax
-            ymin = self.__ymin
-            ymax = self.__ymax
-        else:
-            xmin = self.xmin()
-            xmax = self.xmax()
-            ymin = self.ymin()
-            ymax = self.ymax()
-
-        self.__setExtremes((xmin * factor_x, xmax * factor_x),
-                           (ymin * factor_y, ymax * factor_y),
-                           xref, yref, fractions)
+        xmin, xmax = (self.__xmin, self.__xmax) if fractions else (self.xmin(), self.xmax())
+        ymin, ymax = (self.__ymin, self.__ymax) if fractions else (self.ymin(), self.ymax())
+        self.__setExtremes((xmin * factor_x, xmax * factor_x), (ymin * factor_y, ymax * factor_y), xref, yref,
+                           fractions)
         return self
 
     def addBorder(self, borderx=0, bordery=0, fractions=False, expand=True):
-        if not fractions:
-            __borderx = borderx / self.xref
-            __bordery = bordery / self.yref
-        else:
-            __borderx = borderx
-            __bordery = bordery
-            borderx = self.xref * __borderx
-            bordery = self.yref * __bordery
+        __borderx, __bordery = (borderx / self.xref, bordery / self.yref) if not fractions else (borderx, bordery)
+        borderx, bordery = (self.xref * __borderx, self.yref * __bordery) if fractions else (borderx, bordery)
 
         if self.xmin() < borderx and expand:
             self.__xmin = 0
@@ -255,37 +152,21 @@ class Rect:
         else:
             self.__ymax = min(1, self.__ymax + __bordery)
 
-    # EXPORTS
     def toBox(self, order='xy', sequence='minmax', fractions=False):
-        self.__validateOrder(order)
-        self.__validateSequence(sequence)
-        if fractions:
-            xref = 1
-            yref = 1
-        else:
-            xref = self.xref
-            yref = self.yref
+        xref, yref = (1, 1) if fractions else (self.xref, self.yref)
+        coords = (self.xmin(xref), self.ymin(yref), self.xmax(xref), self.ymax(yref))
 
-        if order == "xy":
-            if sequence == "minmax":
-                return self.xmin(), self.ymin(), self.xmax(), self.ymax()
-            else:
-                return self.xmax(), self.ymax(), self.xmin(), self.ymin()
-        elif order == 'yx':
-            if sequence == "minmax":
-                return self.ymin(), self.xmin(), self.ymax(), self.xmax()
-            else:
-                return self.ymax(), self.xmax(), self.ymin(), self.xmin()
+        if sequence == "maxmin":
+            coords = coords[::-1]
+
+        if order == 'yx':
+            coords = coords[1], coords[0], coords[3], coords[2]
         elif order == 'xx':
-            if sequence == "minmax":
-                return self.xmin(), self.xmax(), self.ymin(), self.ymax()
-            else:
-                return self.xmax(), self.xmin(), self.ymax(), self.ymin()
+            coords = coords[0], coords[2], coords[1], coords[3]
         elif order == 'yy':
-            if sequence == "minmax":
-                return self.ymin(), self.ymax(), self.xmin(), self.xmax()
-            else:
-                return self.ymax(), self.ymin(), self.xmax(), self.xmin()
+            coords = coords[2], coords[3], coords[0], coords[1]
+
+        return coords
 
     def to2Points(self, order='xy', sequence='minmax', fractions=False):
         c1, c2, c3, c4 = self.toBox(order, sequence, fractions)
@@ -295,29 +176,24 @@ class Rect:
         c1, c2, c3, c4 = self.toBox(order, sequence, fractions)
         return (c1, c2), (c3, c4), (c1, c4), (c3, c2)
 
-    # SINGLE POINTS
     def xmin(self, xref=None):
-        if xref is None:
-            xref = self.xref
+        xref = xref or self.xref
         return int(self.__xmin * xref)
 
     def xmax(self, xref=None):
-        if xref is None:
-            xref = self.xref
+        xref = xref or self.xref
         return int(self.__xmax * xref)
 
     def ymin(self, yref=None):
-        if yref is None:
-            yref = self.yref
+        yref = yref or self.yref
         return int(self.__ymin * yref)
 
     def ymax(self, yref=None):
-        if yref is None:
-            yref = self.yref
+        yref = yref or self.yref
         return int(self.__ymax * yref)
 
     def center(self, order='xy'):
-        self.__pointProvider((self.xmin() + self.xmax()) / 2, (self.ymin() + self.ymax()) / 2)
+        return self.__pointProvider((self.xmin() + self.xmax()) / 2, (self.ymin() + self.ymax()) / 2, order)
 
     def topLeft(self, order='xy'):
         return self.__pointProvider(self.xmin(), self.ymin(), order)
@@ -326,74 +202,35 @@ class Rect:
         return self.__pointProvider(self.xmax(), self.ymax(), order)
 
     def __pointProvider(self, x, y, order):
-        self.__validateOrder(order)
-        # TODO: restrict more valid orders for points
-        if order == 'xy':
-            return int(x), int(y)
-        else:
-            return int(y), int(x)
+        return (int(x), int(y)) if order == 'xy' else (int(y), int(x))
 
     def __pointsDistance(self, x0=0, y0=0, x1=0, y1=0, type="cartesian"):
-        if type=="cartesian":
-            squares=(x1 - x0) ** 2 + (y1 - y0) ** 2
-            res=int(math.sqrt(squares))
-        elif type=="cartesian_squares":
-            res = (x1 - x0) ** 2 + (y1 - y0) ** 2
-        elif type=="manhattan":
-            res = abs(x1 - x0) + abs(y1 - y0)
+        if type == "cartesian":
+            return int(math.sqrt((x1 - x0) ** 2 + (y1 - y0) ** 2))
+        elif type == "cartesian_squares":
+            return (x1 - x0) ** 2 + (y1 - y0) ** 2
+        elif type == "manhattan":
+            return abs(x1 - x0) + abs(y1 - y0)
         else:
             raise ValueError("Unknown distance type specified")
 
-        return res
-
-    # OPERATIONS WITH OTHER RECTS
     def union(self, rect):
-        self.__validateRect(rect)
-
         x = (min(self.xmin(), rect.xmin()), max(self.xmax(), rect.xmax()))
         y = (min(self.ymin(), rect.ymin()), max(self.ymax(), rect.ymax()))
-        xref = max(self.xref, rect.xref)
-        yref = max(self.yref, rect.yref)
-
-        self.__setExtremes(x=x, y=y, xref=xref, yref=yref)
+        self.__setExtremes(x, y, max(self.xref, rect.xref), max(self.yref, rect.yref))
         return self
 
     def getDistFromRect(self, rect, reference="border", type="cartesian"):
-        self.__validateRect(rect)
-
-        x_dir=0
-        y_dir=0
-
         if reference == 'center':
             x0, y0 = rect.center()
             x1, y1 = self.center()
         elif reference == 'border':
-            x0 = 0
-            y0 = 0
-            #new rect on the right, dir positive
-            if self.xmax() < rect.xmin():
-                x1 = rect.xmin() - self.xmax()
-                x_dir=1
-            # new rect on the left, dir negative
-            elif self.xmin() > rect.xmax():
-                x1 = self.xmin() - rect.xmax()
-                x_dir=-1
-            else:
-                x1 = 0
-            # new rect on the top, dir positive
-            if self.ymax() < rect.ymin():
-                y1 = rect.ymin() - self.ymax()
-                y_dir=1
-            # new rect on the bottom, dir negative
-            elif self.ymin() > rect.ymax():
-                y1 = self.ymin() - rect.ymax()
-                y_dir=-1
-            else:
-                y1 = 0
+            x0, y0 = 0, 0
+            x1 = rect.xmin() - self.xmax() if self.xmax() < rect.xmin() else self.xmin() - rect.xmax() if self.xmin() > rect.xmax() else 0
+            y1 = rect.ymin() - self.ymax() if self.ymax() < rect.ymin() else self.ymin() - rect.ymax() if self.ymin() > rect.ymax() else 0
         else:
-            raise ValueError(f"Invalid reference to calculate distance")
-
-        return (x_dir, y_dir), self.__pointsDistance(x0, y0, x1, y1, type=type)
+            raise ValueError("Invalid reference to calculate distance")
+        return (x1, y1), self.__pointsDistance(x0, y0, x1, y1, type)
 
 
 class Rects:
@@ -410,7 +247,7 @@ class Rects:
             'to4Points': 'to4Points',
         }
         self.rects = []
-        #self._rects_lookup = {'x': {'min': [], 'rects_idx': []}, 'y': {'min': [], 'rects_idx': []}}
+        # self._rects_lookup = {'x': {'min': [], 'rects_idx': []}, 'y': {'min': [], 'rects_idx': []}}
 
     def __getattr__(self, method):
         if method in self.inboundMapping:
@@ -421,7 +258,7 @@ class Rects:
                     rects = args[0]
                     args = args[1:]
                     for rect in rects:
-                        self.addRect(inboundMethod(rect, *args, **kwargs),update_viewport=False)
+                        self.addRect(inboundMethod(rect, *args, **kwargs), update_viewport=False)
                     self.updateViewport()
                     return self
                 raise AttributeError(
@@ -450,10 +287,8 @@ class Rects:
 
     def updateViewport(self):
         if len(self.rects):
-            self.viewPort=Rect(box=(min([rect[0] for rect in self.rects]),min([rect[1] for rect in self.rects]),max([rect[2] for rect in self.rects]),max([rect[3] for rect in self.rects])))
-
-    def validateRect(self, rect):
-        self.tempRect._Rect__validateRect(rect)
+            self.viewPort = Rect(box=(min([rect[0] for rect in self.rects]), min([rect[1] for rect in self.rects]),
+                                      max([rect[2] for rect in self.rects]), max([rect[3] for rect in self.rects])))
 
     def addRect(self, rect, update_viewport=True):
         self.rects.append((rect.toBox()))
@@ -465,6 +300,7 @@ class Rects:
             else:
                 self.viewPort.union(rect)
         return True
+
     """
     def add_lookup(self, rect, idx=None):
         def _get_target_idx(coor, coor_min):
@@ -490,38 +326,37 @@ class Rects:
 
     def simplifyRects(self, tolerance=5):
         if len(self.rects):
-            rect_new=[self.rects.pop(0)]
+            rect_new = [self.rects.pop(0)]
         else:
-            rect_new=[]
-        square_tolerance=tolerance**2
+            rect_new = []
+        square_tolerance = tolerance ** 2
 
         def can_merge(test_coor_idx, align_coor_idx):
-            test_align_min=(rect_new[-1][test_coor_idx[0]] - this_rect[test_coor_idx[0]]) ** 2 < square_tolerance
-            test_align_max=(rect_new[-1][test_coor_idx[1]] - this_rect[test_coor_idx[1]]) ** 2 < square_tolerance
+            test_align_min = (rect_new[-1][test_coor_idx[0]] - this_rect[test_coor_idx[0]]) ** 2 < square_tolerance
+            test_align_max = (rect_new[-1][test_coor_idx[1]] - this_rect[test_coor_idx[1]]) ** 2 < square_tolerance
             if test_align_min and test_align_max:
-                test_margin1=(rect_new[-1][align_coor_idx[0]] - this_rect[align_coor_idx[1]]) ** 2 < square_tolerance
-                test_margin2=(rect_new[-1][align_coor_idx[1]] - this_rect[align_coor_idx[0]]) ** 2 < square_tolerance
+                test_margin1 = (rect_new[-1][align_coor_idx[0]] - this_rect[align_coor_idx[1]]) ** 2 < square_tolerance
+                test_margin2 = (rect_new[-1][align_coor_idx[1]] - this_rect[align_coor_idx[0]]) ** 2 < square_tolerance
                 if test_margin1 or test_margin2:
                     return True
             return False
 
         while len(self.rects):
-            reset=True
-            while reset==True:
+            reset = True
+            while reset == True:
                 reset = False
-                for j in range(len(self.rects)-1, -1, -1):
-                    this_rect=self.rects.pop(j)
-                    if not can_merge((1,3), (0,2)) and not can_merge((0,2), (1,3)):
+                for j in range(len(self.rects) - 1, -1, -1):
+                    this_rect = self.rects.pop(j)
+                    if not can_merge((1, 3), (0, 2)) and not can_merge((0, 2), (1, 3)):
                         rect_new.append(this_rect)
                     else:
                         rect_new[-1] = [min(this_rect[0], rect_new[-1][0]), min(this_rect[1], rect_new[-1][1]),
                                         max(this_rect[2], rect_new[-1][2]), max(this_rect[3], rect_new[-1][3])]
-                        reset=True
+                        reset = True
                         break
-        self.rects=rect_new
+        self.rects = rect_new
         self.updateViewport()
         return self
-
 
     def moveRectsFrom(self, rects):
         startLen = len(rects)
