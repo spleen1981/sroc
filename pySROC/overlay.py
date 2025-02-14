@@ -188,19 +188,38 @@ class Rect:
 
     def toBox(self, order='xy', sequence='minmax', fractions=False):
         vp_xmax, vp_ymax = (1, 1) if fractions else self._viewPortLimit
-        coords = (self.xmin(vp_xmax), self.ymin(vp_ymax), self.xmax(vp_xmax), self.ymax(vp_ymax))
+        xmin, ymin, xmax, ymax = self.xmin(vp_xmax), self.ymin(vp_ymax), self.xmax(vp_xmax), self.ymax(vp_ymax)
 
-        if sequence == "maxmin":
-            coords = coords[::-1]
-
-        if order == 'yx':
-            coords = coords[1], coords[0], coords[3], coords[2]
+        if order == "xy":
+            if sequence == "minmax":
+                return xmin, ymin, xmax, ymax
+            elif sequence == "maxmin":
+                return xmax, ymax, xmin, ymin
+            else:
+                raise ValueError("Invalid coordinate sequence requested")
+        elif order == 'yx':
+            if sequence == "minmax":
+                return ymin, xmin, ymax, xmax
+            elif sequence == "maxmin":
+                return ymax, xmax, ymin, xmin
+            else:
+                raise ValueError("Invalid coordinate sequence requested")
         elif order == 'xx':
-            coords = coords[0], coords[2], coords[1], coords[3]
+            if sequence == "minmax":
+                return xmin, xmax, ymin, ymax
+            elif sequence == "maxmin":
+                return xmax, xmin, ymax, ymin
+            else:
+                raise ValueError("Invalid coordinate sequence requested")
         elif order == 'yy':
-            coords = coords[2], coords[3], coords[0], coords[1]
-
-        return coords
+            if sequence == "minmax":
+                return ymin, ymax, xmin, xmax
+            elif sequence == "maxmin":
+                return ymax, ymin, xmax, xmin
+            else:
+                raise ValueError("Invalid coordinate sequence requested")
+        else:
+            raise ValueError("Invalid coordinate order requested")
 
     def to2Points(self, order='xy', sequence='minmax', fractions=False):
         c1, c2, c3, c4 = self.toBox(order, sequence, fractions)
