@@ -19,56 +19,46 @@ import numbers
 from functools import lru_cache
 
 class Rect:
-    def __init__(self, points=None, box=None, order='xy', xref=None, yref=None, fractions=False):
-        self.__xref = xref
-        self.__yref = yref
-        self.__xmin = 0
-        self.__xmax = 0
-        self.__ymin = 0
-        self.__ymax = 0
+    def __init__(self, points=None, box=None, order='xy', vp_xmax=None, vp_ymax=None, fractions=False):
+        self.__viewPortLimit = (0, 0)  # (vp_xmax, vp_ymax)
+        self.__innerRect = (0, 0, 0, 0)  # (xmin, ymin, xmax, ymax)
         if box:
-            self.fromBox(box, order, xref, yref, fractions)
+            self.fromBox(box, order, vp_xmax, vp_ymax, fractions)
         elif points:
-            self.fromPoints(points, order, xref, yref, fractions)
+            self.fromPoints(points, order, vp_xmax, vp_ymax, fractions)
         else:
             self.fromBox((0, 0, 0, 0))
 
     def __str__(self):
-        return f"SRect (top_left:[{self.xmin()}, {self.ymin()}] bottom_right:[{self.xmax()}, {self.ymax()}] size:[{self.width()}, {self.height()}] viewport:[{self._xref}, {self._yref}])"
+        return f"SRect (top_left:[{self.xmin()}, {self.ymin()}] bottom_right:[{self.xmax()}, {self.ymax()}] size:[{self.width()}, {self.height()}] viewport:[{self._viewPortLimit[0]}, {self._viewPortLimit[1]}])"
 
     def __hash__(self):
-        return hash((self.__xmin, self.__xmax, self.__ymin, self.__ymax, self.__xref, self.__yref))
+        return hash((self._innerRect, self._viewPortLimit))
 
     def __eq__(self, other):
         if isinstance(other, Rect):
-            return (self.__xmin, self.__xmax, self.__ymin, self.__ymax, self.__xref, self.__yref) == (
-                other.__xmin, other.__xmax, other.__ymin, other.__ymax, other.__xref, other.__yref)
+            return (self._innerRect, self._viewPortLimit) == (other._innerRect, other._viewPortLimit)
         return False
 
-    def __setExtremes(self, x, y, xref=None, yref=None, fractions=False):
+    def __setExtremes(self, x, y, vp_xmax=None, vp_ymax=None, fractions=False):
         xmax, ymax = max(x), max(y)
-        xref = xref or (xmax if xmax else 1)
-        yref = yref or (ymax if ymax else 1)
-        self._xref, self._yref = xref, yref
+        vp_xmax = vp_xmax or (xmax if xmax else 1)
+        vp_ymax = vp_ymax or (ymax if ymax else 1)
+        self._viewPortLimit = (vp_xmax, vp_ymax)
         if fractions:
-            xref, yref = 1, 1
-        self._xmin = min(x) / xref
-        self._ymin = min(y) / yref
-        self._xmax = xmax / xref
-        self._ymax = ymax / yref
+            vp_xmax, vp_ymax = 1, 1
+        self._innerRect = (min(x) / vp_xmax, min(y) / vp_ymax, xmax / vp_xmax, ymax / vp_ymax)
 
-    def scaleReference(self, xref, yref):
-        self._xmin = min(1, self._xmin * self._xref / xref)
-        self._xmax = min(1, self._xmax * self._xref / xref)
-        self._ymin = min(1, self._ymin * self._yref / yref)
-        self._ymax = min(1, self._ymax * self._yref / yref)
-        self._xref, self._yref = xref, yref
+    def scaleReference(self, vp_xmax, vp_ymax):
+        xmin, ymin, xmax, ymax = self._innerRect
+        self._innerRect = (min(1, xmin * self._viewPortLimit[0] / vp_xmax), min(1, ymin * self._viewPortLimit[1] / vp_ymax),
+                            min(1, xmax * self._viewPortLimit[0] / vp_xmax), min(1, ymax * self._viewPortLimit[1] / vp_ymax))
+        self._viewPortLimit = (vp_xmax, vp_ymax)
 
-    def setReference(self, xref, yref):
-        self._xref = xref
-        self._yref = yref
+    def setReference(self, vp_xmax, vp_ymax):
+        self._viewPortLimit = (vp_xmax, vp_ymax)
 
-    def fromBox(self, box=(0, 0, 0, 0), order='xy', xref=None, yref=None, fractions=False):
+    def fromBox(self, box=(0, 0, 0, 0), order='xy', vp_xmax=None, vp_ymax=None, fractions=False):
         if order == 'xy':
             x, y = (box[0], box[2]), (box[1], box[3])
         elif order == 'yx':
@@ -78,14 +68,14 @@ class Rect:
         elif order == 'yy':
             x, y = (box[2], box[3]), (box[0], box[1])
 
-        self.__setExtremes(x, y, xref, yref, fractions)
+        self.__setExtremes(x, y, vp_xmax, vp_ymax, fractions)
         return self
 
-    def fromPoints(self, points=((0, 0), (0, 0), (0, 0), (0, 0)), order='xy', xref=None, yref=None, fractions=False):
+    def fromPoints(self, points=((0, 0), (0, 0), (0, 0), (0, 0)), order='xy', vp_xmax=None, vp_ymax=None, fractions=False):
         index_x = order == 'yx'
         x = tuple(point[index_x] for point in points)
         y = tuple(point[not index_x] for point in points)
-        self.__setExtremes(x, y, xref, yref, fractions)
+        self.__setExtremes(x, y, vp_xmax, vp_ymax, fractions)
         return self
 
     @lru_cache(maxsize=None)
@@ -105,24 +95,27 @@ class Rect:
         return 2 * (self.width() + self.height())
 
     @lru_cache(maxsize=None)
-    def xmin(self, xref=None):
-        xref = xref or self._xref
-        return int(self.__xmin * xref)
+    def xmin(self, vp_xmax=None):
+        vp_xmax = vp_xmax or self._viewPortLimit[0]
+        return int(self._innerRect[0] * vp_xmax)
 
     @lru_cache(maxsize=None)
-    def xmax(self, xref=None):
-        xref = xref or self._xref
-        return int(self.__xmax * xref)
+    def xmax(self, vp_xmax=None):
+        vp_xmax = vp_xmax or self._viewPortLimit[0]
+        return int(self._innerRect[2] * vp_xmax)
 
     @lru_cache(maxsize=None)
-    def ymin(self, yref=None):
-        yref = yref or self._yref
-        return int(self.__ymin * yref)
+    def ymin(self, vp_ymax=None):
+        vp_ymax = vp_ymax or self._viewPortLimit[1]
+        return int(self._innerRect[1] * vp_ymax)
 
     @lru_cache(maxsize=None)
-    def ymax(self, yref=None):
-        yref = yref or self._yref
-        return int(self.__ymax * yref)
+    def ymax(self, vp_ymax=None):
+        vp_ymax = vp_ymax or self._viewPortLimit[1]
+        return int(self._innerRect[3] * vp_ymax)
+
+    def viewPortLimit(self):
+        return self._viewPortLimit
 
     def rotate(self, rotation, xr=0, yr=0, fractions=False):
         if rotation % 90:
@@ -130,8 +123,8 @@ class Rect:
 
         rad = rotation * math.pi / 180
         if not fractions:
-            xr /= self._xref
-            yr /= self._yref
+            xr /= self._viewPortLimit[0]
+            yr /= self._viewPortLimit[1]
 
         def rotate_x(x, y):
             return (x - xr) * math.cos(rad) - (y - yr) * math.sin(rad) + xr
@@ -139,57 +132,56 @@ class Rect:
         def rotate_y(x, y):
             return (x - xr) * math.sin(rad) + (y - yr) * math.cos(rad) + yr
 
-        x = (rotate_x(self.__xmin, self.__ymin), rotate_x(self.__xmax, self.__ymax))
-        y = (rotate_y(self.__xmin, self.__ymin), rotate_y(self.__xmax, self.__ymax))
+        x = (rotate_x(self._innerRect[0], self._innerRect[1]), rotate_x(self._innerRect[2], self._innerRect[3]))
+        y = (rotate_y(self._innerRect[0], self._innerRect[1]), rotate_y(self._innerRect[2], self._innerRect[3]))
 
-        self.__setExtremes(x, y, self._xref, self._yref, True)
+        self.__setExtremes(x, y, self._viewPortLimit[0], self._viewPortLimit[1], True)
         return self
 
-    def addOffset(self, offset_x=0, offset_y=0, xref=None, yref=None, fractions=False):
-        xmin, xmax = (self.__xmin, self.__xmax) if fractions else (self.xmin(), self.xmax())
-        ymin, ymax = (self.__ymin, self.__ymax) if fractions else (self.ymin(), self.ymax())
-        self.__setExtremes((xmin + offset_x, xmax + offset_x), (ymin + offset_y, ymax + offset_y), xref, yref,
+    def addOffset(self, offset_x=0, offset_y=0, vp_xmax=None, vp_ymax=None, fractions=False):
+        xmin, xmax = (self._innerRect[0], self._innerRect[2]) if fractions else (self.xmin(), self.xmax())
+        ymin, ymax = (self._innerRect[1], self._innerRect[3]) if fractions else (self.ymin(), self.ymax())
+        self.__setExtremes((xmin + offset_x, xmax + offset_x), (ymin + offset_y, ymax + offset_y), vp_xmax, vp_ymax,
                            fractions)
         return self
 
-    def addScaleFactor(self, factor_x=1, factor_y=1, xref=None, yref=None, fractions=False):
-        xmin, xmax = (self.__xmin, self.__xmax) if fractions else (self.xmin(), self.xmax())
-        ymin, ymax = (self.__ymin, self.__ymax) if fractions else (self.ymin(), self.ymax())
-        self.__setExtremes((xmin * factor_x, xmax * factor_x), (ymin * factor_y, ymax * factor_y), xref, yref,
+    def addScaleFactor(self, factor_x=1, factor_y=1, vp_xmax=None, vp_ymax=None, fractions=False):
+        xmin, xmax = (self._innerRect[0], self._innerRect[2]) if fractions else (self.xmin(), self.xmax())
+        ymin, ymax = (self._innerRect[1], self._innerRect[3]) if fractions else (self.ymin(), self.ymax())
+        self.__setExtremes((xmin * factor_x, xmax * factor_x), (ymin * factor_y, ymax * factor_y), vp_xmax, vp_ymax,
                            fractions)
         return self
-
     def addBorder(self, borderx=0, bordery=0, fractions=False, expand=True):
-        _borderx, _bordery = (borderx / self._xref, bordery / self._yref) if not fractions else (borderx, bordery)
-        borderx, bordery = (self._xref * _borderx, self._yref * _bordery) if fractions else (borderx, bordery)
+        _borderx, _bordery = (borderx / self._viewPortLimit[0], bordery / self._viewPortLimit[1]) if not fractions else (borderx, bordery)
+        borderx, bordery = (self._viewPortLimit[0] * _borderx, self._viewPortLimit[1] * _bordery) if fractions else (borderx, bordery)
 
         if self.xmin() < borderx and expand:
-            self.__xmin = 0
-            self.scaleReference(self._xref + borderx - self.xmin(), self._yref)
+            self._innerRect = (0, self._innerRect[1], self._innerRect[2], self._innerRect[3])
+            self.scaleReference(self._viewPortLimit[0] + borderx - self.xmin(), self._viewPortLimit[1])
         else:
-            self.__xmin = max(0, self.__xmin - _borderx)
+            self._innerRect = (max(0, self._innerRect[0] - _borderx), self._innerRect[1], self._innerRect[2], self._innerRect[3])
 
-        if borderx > (self._xref - self.xmax()) and expand:
-            self.scaleReference(borderx + self.xmax(), self._yref)
-            self.__xmax = 1
+        if borderx > (self._viewPortLimit[0] - self.xmax()) and expand:
+            self.scaleReference(borderx + self.xmax(), self._viewPortLimit[1])
+            self._innerRect = (self._innerRect[0], self._innerRect[1], 1, self._innerRect[3])
         else:
-            self.__xmax = min(1, self.__xmax + _borderx)
+            self._innerRect = (self._innerRect[0], self._innerRect[1], min(1, self._innerRect[2] + _borderx), self._innerRect[3])
 
         if self.ymin() < bordery and expand:
-            self.__ymin = 0
-            self.scaleReference(self._xref, self._yref + bordery - self.ymin())
+            self._innerRect = (self._innerRect[0], 0, self._innerRect[2], self._innerRect[3])
+            self.scaleReference(self._viewPortLimit[0], self._viewPortLimit[1] + bordery - self.ymin())
         else:
-            self.__ymin = max(0, self.__ymin - _bordery)
+            self._innerRect = (self._innerRect[0], max(0, self._innerRect[1] - _bordery), self._innerRect[2], self._innerRect[3])
 
-        if bordery > self._yref - self.ymax() and expand:
-            self.scaleReference(self._xref, bordery + self.ymax())
-            self.__ymax = 1
+        if bordery > self._viewPortLimit[1] - self.ymax() and expand:
+            self.scaleReference(self._viewPortLimit[0], bordery + self.ymax())
+            self._innerRect = (self._innerRect[0], self._innerRect[1], self._innerRect[2], 1)
         else:
-            self.__ymax = min(1, self.__ymax + _bordery)
+            self._innerRect = (self._innerRect[0], self._innerRect[1], self._innerRect[2], min(1, self._innerRect[3] + _bordery))
 
     def toBox(self, order='xy', sequence='minmax', fractions=False):
-        xref, yref = (1, 1) if fractions else (self.xref, self.yref)
-        coords = (self.xmin(xref), self.ymin(yref), self.xmax(xref), self.ymax(yref))
+        vp_xmax, vp_ymax = (1, 1) if fractions else self._viewPortLimit
+        coords = (self.xmin(vp_xmax), self.ymin(vp_ymax), self.xmax(vp_xmax), self.ymax(vp_ymax))
 
         if sequence == "maxmin":
             coords = coords[::-1]
@@ -212,57 +204,21 @@ class Rect:
         return (c1, c2), (c3, c4), (c1, c4), (c3, c2)
 
     @property
-    def xref(self):
-        return self.__xref
+    def _viewPortLimit(self):
+        return self.__viewPortLimit
 
-    @xref.setter
-    def xref(self, value):
-        self.__xref = value
+    @_viewPortLimit.setter
+    def _viewPortLimit(self, value):
+        self.__viewPortLimit = value
         self.invalidate_cache()
 
     @property
-    def yref(self):
-        return self.__yref
+    def _innerRect(self):
+        return self.__innerRect
 
-    @yref.setter
-    def yref(self, value):
-        self.__yref = value
-        self.invalidate_cache()
-
-    @property
-    def _xmin(self):
-        return self.__xmin
-
-    @_xmin.setter
-    def _xmin(self, value):
-        self.__xmin = value
-        self.invalidate_cache()
-
-    @property
-    def _xmax(self):
-        return self.__xmax
-
-    @_xmax.setter
-    def _xmax(self, value):
-        self.__xmax = value
-        self.invalidate_cache()
-
-    @property
-    def _ymin(self):
-        return self.__ymin
-
-    @_ymin.setter
-    def _ymin(self, value):
-        self.__ymin = value
-        self.invalidate_cache()
-
-    @property
-    def _ymax(self):
-        return self.__ymax
-
-    @_ymax.setter
-    def _ymax(self, value):
-        self.__ymax = value
+    @_innerRect.setter
+    def _innerRect(self, value):
+        self.__innerRect = value
         self.invalidate_cache()
 
     def invalidate_cache(self):
@@ -303,7 +259,7 @@ class Rect:
     def union(self, rect):
         x = (min(self.xmin(), rect.xmin()), max(self.xmax(), rect.xmax()))
         y = (min(self.ymin(), rect.ymin()), max(self.ymax(), rect.ymax()))
-        self.__setExtremes(x, y, max(self._xref, rect.xref), max(self._yref, rect.yref))
+        self.__setExtremes(x, y, max(self._viewPortLimit[0], rect.vp_xmax), max(self._viewPortLimit[1], rect.vp_ymax))
         return self
 
     @lru_cache(maxsize=None)
