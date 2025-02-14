@@ -16,11 +16,16 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 import math
 import numbers
-import numpy as np
-
+from functools import lru_cache
 
 class Rect:
     def __init__(self, points=None, box=None, order='xy', xref=None, yref=None, fractions=False):
+        self.__xref = xref
+        self.__yref = yref
+        self.__xmin = 0
+        self.__xmax = 0
+        self.__ymin = 0
+        self.__ymax = 0
         if box:
             self.fromBox(box, order, xref, yref, fractions)
         elif points:
@@ -29,29 +34,39 @@ class Rect:
             self.fromBox((0, 0, 0, 0))
 
     def __str__(self):
-        return f"SRect (top_left:[{self.xmin()}, {self.ymin()}] bottom_right:[{self.xmax()}, {self.ymax()}] size:[{self.width()}, {self.height()}] viewport:[{self.xref}, {self.yref}])"
+        return f"SRect (top_left:[{self.xmin()}, {self.ymin()}] bottom_right:[{self.xmax()}, {self.ymax()}] size:[{self.width()}, {self.height()}] viewport:[{self._xref}, {self._yref}])"
+
+    def __hash__(self):
+        return hash((self.__xmin, self.__xmax, self.__ymin, self.__ymax, self.__xref, self.__yref))
+
+    def __eq__(self, other):
+        if isinstance(other, Rect):
+            return (self.__xmin, self.__xmax, self.__ymin, self.__ymax, self.__xref, self.__yref) == (
+                other.__xmin, other.__xmax, other.__ymin, other.__ymax, other.__xref, other.__yref)
+        return False
 
     def __setExtremes(self, x, y, xref=None, yref=None, fractions=False):
-        x = np.array(x)
-        y = np.array(y)
-        xmax, ymax = np.max(x), np.max(y)
+        xmax, ymax = max(x), max(y)
         xref = xref or (xmax if xmax else 1)
         yref = yref or (ymax if ymax else 1)
-        self.xref, self.yref = xref, yref
+        self._xref, self._yref = xref, yref
         if fractions:
             xref, yref = 1, 1
-        self.__xmin, self.__ymin = np.min(x) / xref, np.min(y) / yref
-        self.__xmax, self.__ymax = xmax / xref, ymax / yref
+        self._xmin = min(x) / xref
+        self._ymin = min(y) / yref
+        self._xmax = xmax / xref
+        self._ymax = ymax / yref
 
     def scaleReference(self, xref, yref):
-        self.__xmin = min(1, self.__xmin * self.xref / xref)
-        self.__xmax = min(1, self.__xmax * self.xref / xref)
-        self.__ymin = min(1, self.__ymin * self.yref / yref)
-        self.__ymax = min(1, self.__ymax * self.yref / yref)
-        self.xref, self.yref = xref, yref
+        self._xmin = min(1, self._xmin * self._xref / xref)
+        self._xmax = min(1, self._xmax * self._xref / xref)
+        self._ymin = min(1, self._ymin * self._yref / yref)
+        self._ymax = min(1, self._ymax * self._yref / yref)
+        self._xref, self._yref = xref, yref
 
     def setReference(self, xref, yref):
-        self.xref, self.yref = xref, yref
+        self._xref = xref
+        self._yref = yref
 
     def fromBox(self, box=(0, 0, 0, 0), order='xy', xref=None, yref=None, fractions=False):
         if order == 'xy':
@@ -73,31 +88,50 @@ class Rect:
         self.__setExtremes(x, y, xref, yref, fractions)
         return self
 
+    @lru_cache(maxsize=None)
     def width(self):
         return abs(self.xmax() - self.xmin())
 
+    @lru_cache(maxsize=None)
     def height(self):
         return abs(self.ymax() - self.ymin())
 
-    def widthRef(self):
-        return self.xref
-
-    def heightRef(self):
-        return self.yref
-
+    @lru_cache(maxsize=None)
     def area(self):
         return self.width() * self.height()
 
+    @lru_cache(maxsize=None)
     def perimeter(self):
         return 2 * (self.width() + self.height())
+
+    @lru_cache(maxsize=None)
+    def xmin(self, xref=None):
+        xref = xref or self._xref
+        return int(self.__xmin * xref)
+
+    @lru_cache(maxsize=None)
+    def xmax(self, xref=None):
+        xref = xref or self._xref
+        return int(self.__xmax * xref)
+
+    @lru_cache(maxsize=None)
+    def ymin(self, yref=None):
+        yref = yref or self._yref
+        return int(self.__ymin * yref)
+
+    @lru_cache(maxsize=None)
+    def ymax(self, yref=None):
+        yref = yref or self._yref
+        return int(self.__ymax * yref)
 
     def rotate(self, rotation, xr=0, yr=0, fractions=False):
         if rotation % 90:
             raise ValueError("Multiple of 90° are only accepted for straight rectangles")
+
         rad = rotation * math.pi / 180
         if not fractions:
-            xr /= self.xref
-            yr /= self.yref
+            xr /= self._xref
+            yr /= self._yref
 
         def rotate_x(x, y):
             return (x - xr) * math.cos(rad) - (y - yr) * math.sin(rad) + xr
@@ -107,7 +141,8 @@ class Rect:
 
         x = (rotate_x(self.__xmin, self.__ymin), rotate_x(self.__xmax, self.__ymax))
         y = (rotate_y(self.__xmin, self.__ymin), rotate_y(self.__xmax, self.__ymax))
-        self.__setExtremes(x, y, self.xref, self.yref, True)
+
+        self.__setExtremes(x, y, self._xref, self._yref, True)
         return self
 
     def addOffset(self, offset_x=0, offset_y=0, xref=None, yref=None, fractions=False):
@@ -125,32 +160,32 @@ class Rect:
         return self
 
     def addBorder(self, borderx=0, bordery=0, fractions=False, expand=True):
-        __borderx, __bordery = (borderx / self.xref, bordery / self.yref) if not fractions else (borderx, bordery)
-        borderx, bordery = (self.xref * __borderx, self.yref * __bordery) if fractions else (borderx, bordery)
+        _borderx, _bordery = (borderx / self._xref, bordery / self._yref) if not fractions else (borderx, bordery)
+        borderx, bordery = (self._xref * _borderx, self._yref * _bordery) if fractions else (borderx, bordery)
 
         if self.xmin() < borderx and expand:
             self.__xmin = 0
-            self.scaleReference(self.xref + borderx - self.xmin(), self.yref)
+            self.scaleReference(self._xref + borderx - self.xmin(), self._yref)
         else:
-            self.__xmin = max(0, self.__xmin - __borderx)
+            self.__xmin = max(0, self.__xmin - _borderx)
 
-        if borderx > (self.xref - self.xmax()) and expand:
-            self.scaleReference(borderx + self.xmax(), self.yref)
+        if borderx > (self._xref - self.xmax()) and expand:
+            self.scaleReference(borderx + self.xmax(), self._yref)
             self.__xmax = 1
         else:
-            self.__xmax = min(1, self.__xmax + __borderx)
+            self.__xmax = min(1, self.__xmax + _borderx)
 
         if self.ymin() < bordery and expand:
             self.__ymin = 0
-            self.scaleReference(self.xref, self.yref + bordery - self.ymin())
+            self.scaleReference(self._xref, self._yref + bordery - self.ymin())
         else:
-            self.__ymin = max(0, self.__ymin - __bordery)
+            self.__ymin = max(0, self.__ymin - _bordery)
 
-        if bordery > self.yref - self.ymax() and expand:
-            self.scaleReference(self.xref, bordery + self.ymax())
+        if bordery > self._yref - self.ymax() and expand:
+            self.scaleReference(self._xref, bordery + self.ymax())
             self.__ymax = 1
         else:
-            self.__ymax = min(1, self.__ymax + __bordery)
+            self.__ymax = min(1, self.__ymax + _bordery)
 
     def toBox(self, order='xy', sequence='minmax', fractions=False):
         xref, yref = (1, 1) if fractions else (self.xref, self.yref)
@@ -176,22 +211,73 @@ class Rect:
         c1, c2, c3, c4 = self.toBox(order, sequence, fractions)
         return (c1, c2), (c3, c4), (c1, c4), (c3, c2)
 
-    def xmin(self, xref=None):
-        xref = xref or self.xref
-        return int(self.__xmin * xref)
+    @property
+    def xref(self):
+        return self.__xref
 
-    def xmax(self, xref=None):
-        xref = xref or self.xref
-        return int(self.__xmax * xref)
+    @xref.setter
+    def xref(self, value):
+        self.__xref = value
+        self.invalidate_cache()
 
-    def ymin(self, yref=None):
-        yref = yref or self.yref
-        return int(self.__ymin * yref)
+    @property
+    def yref(self):
+        return self.__yref
 
-    def ymax(self, yref=None):
-        yref = yref or self.yref
-        return int(self.__ymax * yref)
+    @yref.setter
+    def yref(self, value):
+        self.__yref = value
+        self.invalidate_cache()
 
+    @property
+    def _xmin(self):
+        return self.__xmin
+
+    @_xmin.setter
+    def _xmin(self, value):
+        self.__xmin = value
+        self.invalidate_cache()
+
+    @property
+    def _xmax(self):
+        return self.__xmax
+
+    @_xmax.setter
+    def _xmax(self, value):
+        self.__xmax = value
+        self.invalidate_cache()
+
+    @property
+    def _ymin(self):
+        return self.__ymin
+
+    @_ymin.setter
+    def _ymin(self, value):
+        self.__ymin = value
+        self.invalidate_cache()
+
+    @property
+    def _ymax(self):
+        return self.__ymax
+
+    @_ymax.setter
+    def _ymax(self, value):
+        self.__ymax = value
+        self.invalidate_cache()
+
+    def invalidate_cache(self):
+        self.xmax.cache_clear()
+        self.xmin.cache_clear()
+        self.ymax.cache_clear()
+        self.ymin.cache_clear()
+        self.width.cache_clear()
+        self.height.cache_clear()
+        self.area.cache_clear()
+        self.perimeter.cache_clear()
+        self.center.cache_clear()
+        self.getDistFromRect.cache_clear()
+
+    @lru_cache(maxsize=None)
     def center(self, order='xy'):
         return self.__pointProvider((self.xmin() + self.xmax()) / 2, (self.ymin() + self.ymax()) / 2, order)
 
@@ -217,9 +303,10 @@ class Rect:
     def union(self, rect):
         x = (min(self.xmin(), rect.xmin()), max(self.xmax(), rect.xmax()))
         y = (min(self.ymin(), rect.ymin()), max(self.ymax(), rect.ymax()))
-        self.__setExtremes(x, y, max(self.xref, rect.xref), max(self.yref, rect.yref))
+        self.__setExtremes(x, y, max(self._xref, rect.xref), max(self._yref, rect.yref))
         return self
 
+    @lru_cache(maxsize=None)
     def getDistFromRect(self, rect, reference="border", type="cartesian"):
         if reference == 'center':
             x0, y0 = rect.center()
