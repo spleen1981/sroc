@@ -262,6 +262,18 @@ class Rect:
             raise ValueError("Invalid reference to calculate distance")
         return (x1, y1), self.__pointsDistance(x0, y0, x1, y1, type)
 
+    def _getDistFromStdBox(self, box, reference="border", type="cartesian"):
+        if reference == 'center':
+            x0, y0 = (box[0]+box[2])/2, (box[1]+box[3])/2
+            x1, y1 = self.center()
+        elif reference == 'border':
+            x0, y0 = 0, 0
+            x1 = box[0] - self.xmax() if self.xmax() < box[0] else self.xmin() - box[2] if self.xmin() > box[2] else 0
+            y1 = box[1] - self.ymax() if self.ymax() < box[1] else self.ymin() - box[3] if self.ymin() > box[3] else 0
+        else:
+            raise ValueError("Invalid reference to calculate distance")
+        return (x1, y1), self.__pointsDistance(x0, y0, x1, y1, type)
+
 
 class Rects:
     def __init__(self):
@@ -358,8 +370,7 @@ class Rects:
                     if not can_merge((1, 3), (0, 2)) and not can_merge((0, 2), (1, 3)):
                         rect_new.append(this_rect)
                     else:
-                        rect_new[-1] = [min(this_rect[0], rect_new[-1][0]), min(this_rect[1], rect_new[-1][1]),
-                                        max(this_rect[2], rect_new[-1][2]), max(this_rect[3], rect_new[-1][3])]
+                        rect_new[-1] = min(this_rect[0], rect_new[-1][0]), min(this_rect[1], rect_new[-1][1]), max(this_rect[2], rect_new[-1][2]), max(this_rect[3], rect_new[-1][3])
                         reset = True
                         break
         self.rects = rect_new
@@ -372,6 +383,26 @@ class Rects:
             if self.addRect(Rect().fromBox(rects.rects[i]), update_viewport=False):
                 rects.rects.pop(i)
         if startLen > len(rects):
+            self.updateViewport()
+            return True
+        return False
+
+    def _addStdBox(self, box, update_viewport=True):
+        self.rects.append(box)
+        if update_viewport:
+            # extend mainRect
+            if self.viewPort is None:
+                self.viewPort = Rect().fromBox(box)
+            else:
+                self.viewPort.union(box)
+        return True
+
+    def _moveStdBoxesFrom(self, boxes):
+        startLen = len(boxes)
+        for i in range(len(boxes) - 1, -1, -1):
+            if self._addStdBox(boxes[i], update_viewport=False):
+                boxes.pop(i)
+        if startLen > len(boxes):
             self.updateViewport()
             return True
         return False
@@ -423,6 +454,33 @@ class CactusRects(Rects):
 
     def moveRectsFrom(self, rects):
         while super().moveRectsFrom(rects):
+            pass
+
+    def _addStdBox(self, box, update_viewport=True):
+        square_tolerance = self.tolerance ** 2
+        dir, dist = self.viewPort._getDistFromStdBox(box, reference="border", type="cartesian_squares")
+        if dist > square_tolerance:
+            return False
+
+        boundary_rects = set()
+        xmin, ymin, xmax, ymax = self.viewPort.xmin(), self.viewPort.ymin(), self.viewPort.xmax(), self.viewPort.ymax()
+        if self.strategy == 'full':
+            boundary_rects.update(r for r in self.rects)
+        elif self.strategy == 'boundaries_only':
+            boundary_rects.update(r for r in self.rects if r[0] == xmin or r[1] == ymin or r[2] == xmax or r[3] == ymax)
+        else:
+            raise ValueError("Unknown merge strategy")
+        self.tempRect.fromBox(box)
+        for boundary_rect in boundary_rects:
+            _, rect_dist = self.tempRect._getDistFromStdBox(boundary_rect, reference="border",
+                                                            type="cartesian_squares")
+            if rect_dist <= square_tolerance:
+                super()._addStdBox(box, update_viewport=update_viewport)
+                return True
+        return False
+
+    def _moveStdBoxesFrom(self, boxes):
+        while super()._moveStdBoxesFrom(boxes):
             pass
 
     def __getattr__(self, method):

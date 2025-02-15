@@ -153,8 +153,8 @@ class RectCanvas():
                     cv2.putText(img, self.rects_labels[i], (left, top), font, scale, (0, 0, 0), text_thk)
 
         if crop_to_viewport:
-            img = img[self.rects.mainRect.ymin():self.rects.mainRect.ymax(),
-                  self.rects.mainRect.xmin():self.rects.mainRect.xmax()]
+            img = img[self.rects.viewPort.ymin():self.rects.viewPort.ymax(),
+                  self.rects.viewPort.xmin():self.rects.viewPort.xmax()]
         return img
 
     def originalCanvasSize(self):
@@ -239,15 +239,14 @@ class RectScanner(RectCanvas):
                     else:
                         rects.append([i, lines[i][j][0], i, lines[i][j][1]])
                 found = False
-        return Rects().fromBox(rects)
+        return rects
 
     def scanFilledRects(self, color_treshold=200, min_lenght=20, adjacent_margin=0, limits_margin=1):
         self.color_treshold = color_treshold
         self.length_treshold = min_lenght
         self.adjacent_margin = adjacent_margin
         self.limits_margin = limits_margin
-        self.rects.moveRectsFrom(self.__groupLinesToRects(self.__groupPointsToLines(1), 1))
-        self.rects.moveRectsFrom(self.__groupLinesToRects(self.__groupPointsToLines(0), 0))
+        self.rects._moveStdBoxesFrom(self.__groupLinesToRects(self.__groupPointsToLines(1), 1)+self.__groupLinesToRects(self.__groupPointsToLines(0), 0))
         return self.rects
 
 
