@@ -277,7 +277,6 @@ class Rects:
             'to4Points': 'to4Points',
         }
         self.rects = []
-        # self._rects_lookup = {'x': {'min': [], 'rects_idx': []}, 'y': {'min': [], 'rects_idx': []}}
 
     def __getattr__(self, method):
         if method in self.inboundMapping:
@@ -310,7 +309,10 @@ class Rects:
             raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{method}'")
 
     def __str__(self):
-        return f"SRects ({len(self.rects)} Rects, overall top_left:[{self.viewPort.xmin()}, {self.viewPort.ymin()}] overall bottom_right:[{self.viewPort.xmax()}, {self.viewPort.ymax()}] overall size:[{self.viewPort.width()}, {self.viewPort.height()}] viewport:[{self.viewPort.getViewPortLimit()}])"
+        return (f"SRects ({len(self.rects)} Rects, overall top_left:[{self.viewPort.xmin()}, {self.viewPort.ymin()}] "
+                f"overall bottom_right:[{self.viewPort.xmax()}, {self.viewPort.ymax()}] "
+                f"overall size:[{self.viewPort.width()}, {self.viewPort.height()}] "
+                f"viewport:[{self.viewPort.getViewPortLimit()}])")
 
     def __len__(self):
         return len(self.rects)
@@ -321,8 +323,7 @@ class Rects:
                                       max([rect[2] for rect in self.rects]), max([rect[3] for rect in self.rects])))
 
     def addRect(self, rect, update_viewport=True):
-        self.rects.append((rect.toBox()))
-
+        self.rects.append(rect.toBox())
         if update_viewport:
             # extend mainRect
             if self.viewPort is None:
@@ -330,29 +331,6 @@ class Rects:
             else:
                 self.viewPort.union(rect)
         return True
-
-    """
-    def add_lookup(self, rect, idx=None):
-        def _get_target_idx(coor, coor_min):
-            res=None
-            len_list=len(self._rects_lookup[coor]['rects_idx'])
-            for i in range(len_list):
-                if coor_min<self._rects_lookup[coor]['min'][i]:
-                    res=i
-                    break
-            if res is None: res=len_list
-            return len_list
-
-        def _add_to_lookup(coor, coor_min, idx):
-            target_idx=_get_target_idx(coor, coor_min)
-            if idx is None:
-                idx= len(self.rects)-1
-            self._rects_lookup[coor]['min'].insert(target_idx, coor_min)
-            self._rects_lookup[coor]['rects_idx'].insert(target_idx, idx)
-
-        _add_to_lookup('x',rect.xmin(), idx)
-        _add_to_lookup('y', rect.ymin(), idx)
-    """
 
     def simplifyRects(self, tolerance=5):
         if len(self.rects):
@@ -373,7 +351,7 @@ class Rects:
 
         while len(self.rects):
             reset = True
-            while reset == True:
+            while reset:
                 reset = False
                 for j in range(len(self.rects) - 1, -1, -1):
                     this_rect = self.rects.pop(j)
@@ -390,21 +368,18 @@ class Rects:
 
     def moveRectsFrom(self, rects):
         startLen = len(rects)
-        i = 0
         for i in range(len(rects) - 1, -1, -1):
             if self.addRect(Rect().fromBox(rects.rects[i]), update_viewport=False):
                 rects.rects.pop(i)
-
         if startLen > len(rects):
             self.updateViewport()
             return True
         return False
 
     def __getRect(self, index, then_remove=False):
-        # if index in range(len(self)):
         rect = Rect().fromBox(self.rects[index])
         if then_remove:
-            del (self.rects[index])
+            del self.rects[index]
             self.updateViewport()
         return rect
 
@@ -419,73 +394,24 @@ class CactusRects(Rects):
     def __init__(self, seedRect, tolerance=5, strategy="full"):
         super().__init__()
         super().addRect(seedRect)
-        # self.seed = seedRect
         self.tolerance = tolerance
-        # self.roi_size = 50
         self.strategy = strategy
 
     def addRect(self, rect, update_viewport=True):
         square_tolerance = self.tolerance ** 2
-        # See if new rect is close enough to global boundaries
         dir, dist = self.viewPort.getDistFromRect(rect, reference="border", type="cartesian_squares")
-        # print(f"self.mainRect {self.mainRect} rect {rect} dist {dist}")
         if dist > square_tolerance:
             return False
-        """
-        # Exclude internal boxes depending on external rect approach direction
+
         boundary_rects = []
-        boundary_rects_x = []
-
-        xmin=rect.xmin()
-        xmin_min=xmin-(self.tolerance+self.roi_size)
-        xmin_max=xmin+(self.tolerance + self.roi_size)
-        ymin=rect.ymin()
-        ymin_min=ymin-(self.tolerance+self.roi_size)
-        ymin_max=ymin+(self.tolerance+self.roi_size)
-
-        for i in range(len(self._rects_lookup['x']['min'])):
-            this_idx=self._rects_lookup['y']['rects_idx'][i]
-            this_coormin=self._rects_lookup['y']['min'][i]
-            if not xmin_min > this_coormin and not xmin_max < this_coormin:
-                boundary_rects_x.append(this_idx)
-
-        for i in range(len(self._rects_lookup['y']['min'])):
-            this_idx=self._rects_lookup['y']['rects_idx'][i]
-            this_coormin=self._rects_lookup['y']['min'][i]
-            if not ymin_min > this_coormin and not ymin_max < this_coormin and this_idx in boundary_rects_x:
-                boundary_rects.append(self.rects[this_idx])
-
-
-        """
-
-        # print(boundary_rects)
-        boundary_rects = []
-        xmin = self.viewPort.xmin()
-        ymin = self.viewPort.ymin()
-        xmax = self.viewPort.xmax()
-        ymax = self.viewPort.ymax()
+        xmin, ymin, xmax, ymax = self.viewPort.xmin(), self.viewPort.ymin(), self.viewPort.xmax(), self.viewPort.ymax()
 
         if self.strategy == 'full':
             boundary_rects = [r for r in self.rects]
         elif self.strategy == 'boundaries_only':
-            for r in self.rects:
-                if r[0] == xmin or r[1] == ymin or r[2] == xmax or r[3] == ymax:
-                    boundary_rects.append(r)
+            boundary_rects = [r for r in self.rects if r[0] == xmin or r[1] == ymin or r[2] == xmax or r[3] == ymax]
         else:
             raise ValueError("Unknown merge strategy")
-
-        """
-        print(dir)
-        print(dist)
-        for r in self.rects:
-            if dir[0] > 0 and r[2] == xmax or dir[0] < 0 and r[0] == xmin:
-                boundary_rects.append(r)
-                continue
-
-            if dir[1] > 0 and r[1] == ymin or dir[1] < 0 and r[3] == ymax:
-                boundary_rects.append(r)
-                continue
-        """
 
         for i in range(len(boundary_rects) - 1, -1, -1):
             _, rect_dist = rect.getDistFromRect(self.tempRect.fromBox(boundary_rects[i]), reference="border",
@@ -506,7 +432,6 @@ class CactusRects(Rects):
                 inboundMethod = getattr(tempRects, self.inboundMapping[method])
                 inboundMethod(*args, **kwargs)
                 self.moveRectsFrom(tempRects)
-
             return wrapper
         else:
             return super().__getattr__(method)
