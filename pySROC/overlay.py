@@ -434,18 +434,18 @@ class CactusRects(Rects):
         if dist > square_tolerance:
             return False
 
-        boundary_rects = []
+        boundary_rects = set()
         xmin, ymin, xmax, ymax = self.viewPort.xmin(), self.viewPort.ymin(), self.viewPort.xmax(), self.viewPort.ymax()
 
         if self.strategy == 'full':
-            boundary_rects = [r for r in self.rects]
+            boundary_rects.update(r for r in self.rects)
         elif self.strategy == 'boundaries_only':
-            boundary_rects = [r for r in self.rects if r[0] == xmin or r[1] == ymin or r[2] == xmax or r[3] == ymax]
+            boundary_rects.update(r for r in self.rects if r[0] == xmin or r[1] == ymin or r[2] == xmax or r[3] == ymax)
         else:
             raise ValueError("Unknown merge strategy")
 
-        for i in range(len(boundary_rects) - 1, -1, -1):
-            _, rect_dist = rect.getDistFromRect(self.tempRect.fromBox(boundary_rects[i]), reference="border",
+        for boundary_rect in boundary_rects:
+            _, rect_dist = rect.getDistFromRect(self.tempRect.fromBox(boundary_rect), reference="border",
                                                 type="cartesian_squares")
             if rect_dist <= square_tolerance:
                 super().addRect(rect, update_viewport=update_viewport)
