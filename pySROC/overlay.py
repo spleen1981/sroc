@@ -16,19 +16,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 import math
 import numbers
-from functools import lru_cache
-
-def conditional_cache(use_cache):
-    def decorator(func):
-        if use_cache:
-            return lru_cache(maxsize=None)(func)
-        return func
-    return decorator
 
 class Rect:
     def __init__(self, points=None, box=None, order='xy', vp_xmax=None, vp_ymax=None, fractions=False, use_cache=False):
-        self.__viewPortLimit = [0, 0]  # (vp_xmax, vp_ymax)
-        self.__innerRect = [0, 0, 0, 0]  # (xmin, ymin, xmax, ymax)
+        self._viewPortLimit = [0, 0]  # (vp_xmax, vp_ymax)
+        self._innerRect = [0, 0, 0, 0]  # (xmin, ymin, xmax, ymax)
         if box:
             self.fromBox(box, order, vp_xmax, vp_ymax, fractions)
         elif points:
@@ -85,38 +77,38 @@ class Rect:
         self.__setExtremes(x, y, vp_xmax, vp_ymax, fractions)
         return self
 
-    @conditional_cache(use_cache=True)
+
     def width(self):
         return abs(self.xmax() - self.xmin())
 
-    @conditional_cache(use_cache=True)
+
     def height(self):
         return abs(self.ymax() - self.ymin())
 
-    @conditional_cache(use_cache=True)
+
     def area(self):
         return self.width() * self.height()
 
-    @conditional_cache(use_cache=True)
+
     def perimeter(self):
         return 2 * (self.width() + self.height())
 
-    @conditional_cache(use_cache=True)
+
     def xmin(self, vp_xmax=None):
         vp_xmax = vp_xmax or self._viewPortLimit[0]
         return int(self._innerRect[0] * vp_xmax)
 
-    @conditional_cache(use_cache=True)
+
     def xmax(self, vp_xmax=None):
         vp_xmax = vp_xmax or self._viewPortLimit[0]
         return int(self._innerRect[2] * vp_xmax)
 
-    @conditional_cache(use_cache=True)
+
     def ymin(self, vp_ymax=None):
         vp_ymax = vp_ymax or self._viewPortLimit[1]
         return int(self._innerRect[1] * vp_ymax)
 
-    @conditional_cache(use_cache=True)
+
     def ymax(self, vp_ymax=None):
         vp_ymax = vp_ymax or self._viewPortLimit[1]
         return int(self._innerRect[3] * vp_ymax)
@@ -229,37 +221,6 @@ class Rect:
         c1, c2, c3, c4 = self.toBox(order, sequence, fractions)
         return (c1, c2), (c3, c4), (c1, c4), (c3, c2)
 
-    @property
-    def _viewPortLimit(self):
-        return self.__viewPortLimit
-
-    @_viewPortLimit.setter
-    def _viewPortLimit(self, value):
-        self.__viewPortLimit = value
-        self.invalidate_cache()
-
-    @property
-    def _innerRect(self):
-        return self.__innerRect
-
-    @_innerRect.setter
-    def _innerRect(self, value):
-        self.__innerRect = value
-        self.invalidate_cache()
-
-    def invalidate_cache(self):
-        self.xmax.cache_clear()
-        self.xmin.cache_clear()
-        self.ymax.cache_clear()
-        self.ymin.cache_clear()
-        self.width.cache_clear()
-        self.height.cache_clear()
-        self.area.cache_clear()
-        self.perimeter.cache_clear()
-        self.center.cache_clear()
-        self.getDistFromRect.cache_clear()
-
-    @conditional_cache(use_cache=True)
     def center(self, order='xy'):
         return self.__pointProvider((self.xmin() + self.xmax()) / 2, (self.ymin() + self.ymax()) / 2, order)
 
@@ -288,7 +249,7 @@ class Rect:
         self.__setExtremes(x, y, max(self._viewPortLimit[0], rect.vp_xmax), max(self._viewPortLimit[1], rect.vp_ymax))
         return self
 
-    @conditional_cache(use_cache=True)
+
     def getDistFromRect(self, rect, reference="border", type="cartesian"):
         if reference == 'center':
             x0, y0 = rect.center()
