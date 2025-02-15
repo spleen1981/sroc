@@ -18,16 +18,16 @@ import math
 import numbers
 
 class Rect:
-    def __init__(self, points=None, box=None, order='xy', vp_xmax=None, vp_ymax=None, fractions=False, use_cache=False):
+    def __init__(self, points=None, box=None, order='xy', vp_xmax=None, vp_ymax=None, use_vp_fractions=False):
         self._viewPortLimit = [0, 0]  # (vp_xmax, vp_ymax)
         self._innerRect = [0, 0, 0, 0]  # (xmin, ymin, xmax, ymax)
         if box:
-            self.fromBox(box, order, vp_xmax, vp_ymax, fractions)
+            self.fromBox(box, order, vp_xmax, vp_ymax, use_vp_fractions)
         elif points:
-            self.fromPoints(points, order, vp_xmax, vp_ymax, fractions)
+            self.fromPoints(points, order, vp_xmax, vp_ymax, use_vp_fractions)
         else:
             self.fromBox((0, 0, 0, 0))
-        self.use_cache=use_cache
+
     def __str__(self):
         return f"SRect (top_left:[{self.xmin()}, {self.ymin()}] bottom_right:[{self.xmax()}, {self.ymax()}] size:[{self.width()}, {self.height()}] viewport:[{self._viewPortLimit[0]}, {self._viewPortLimit[1]}])"
 
@@ -39,25 +39,29 @@ class Rect:
             return (self._innerRect, self._viewPortLimit) == (other._innerRect, other._viewPortLimit)
         return False
 
-    def __setExtremes(self, x, y, vp_xmax=None, vp_ymax=None, fractions=False):
+    def __setExtremes(self, x, y, vp_xmax=None, vp_ymax=None, use_vp_fractions=False):
         xmax, ymax = max(x), max(y)
         vp_xmax = vp_xmax or (xmax if xmax else 1)
         vp_ymax = vp_ymax or (ymax if ymax else 1)
         self._viewPortLimit = (vp_xmax, vp_ymax)
-        if fractions:
+        if use_vp_fractions:
             vp_xmax, vp_ymax = 1, 1
         self._innerRect = (min(x) / vp_xmax, min(y) / vp_ymax, xmax / vp_xmax, ymax / vp_ymax)
 
-    def scaleReference(self, vp_xmax, vp_ymax):
+    def scaleViewportLimit(self, vp_xmax, vp_ymax):
         xmin, ymin, xmax, ymax = self._innerRect
-        self._innerRect = (min(1, xmin * self._viewPortLimit[0] / vp_xmax), min(1, ymin * self._viewPortLimit[1] / vp_ymax),
-                            min(1, xmax * self._viewPortLimit[0] / vp_xmax), min(1, ymax * self._viewPortLimit[1] / vp_ymax))
+        self._innerRect = (
+        min(1, xmin * self._viewPortLimit[0] / vp_xmax), min(1, ymin * self._viewPortLimit[1] / vp_ymax),
+        min(1, xmax * self._viewPortLimit[0] / vp_xmax), min(1, ymax * self._viewPortLimit[1] / vp_ymax))
         self._viewPortLimit = (vp_xmax, vp_ymax)
 
-    def setReference(self, vp_xmax, vp_ymax):
+    def setViewportLimit(self, vp_xmax, vp_ymax):
         self._viewPortLimit = (vp_xmax, vp_ymax)
 
-    def fromBox(self, box=(0, 0, 0, 0), order='xy', vp_xmax=None, vp_ymax=None, fractions=False):
+    def getViewPortLimit(self):
+        return self._viewPortLimit
+
+    def fromBox(self, box=(0, 0, 0, 0), order='xy', vp_xmax=None, vp_ymax=None, use_vp_fractions=False):
         if order == 'xy':
             x, y = (box[0], box[2]), (box[1], box[3])
         elif order == 'yx':
@@ -67,61 +71,51 @@ class Rect:
         elif order == 'yy':
             x, y = (box[2], box[3]), (box[0], box[1])
 
-        self.__setExtremes(x, y, vp_xmax, vp_ymax, fractions)
+        self.__setExtremes(x, y, vp_xmax, vp_ymax, use_vp_fractions)
         return self
 
-    def fromPoints(self, points=((0, 0), (0, 0), (0, 0), (0, 0)), order='xy', vp_xmax=None, vp_ymax=None, fractions=False):
+    def fromPoints(self, points=((0, 0), (0, 0), (0, 0), (0, 0)), order='xy', vp_xmax=None, vp_ymax=None,
+                   use_vp_fractions=False):
         index_x = order == 'yx'
         x = tuple(point[index_x] for point in points)
         y = tuple(point[not index_x] for point in points)
-        self.__setExtremes(x, y, vp_xmax, vp_ymax, fractions)
+        self.__setExtremes(x, y, vp_xmax, vp_ymax, use_vp_fractions)
         return self
-
 
     def width(self):
         return abs(self.xmax() - self.xmin())
 
-
     def height(self):
         return abs(self.ymax() - self.ymin())
-
 
     def area(self):
         return self.width() * self.height()
 
-
     def perimeter(self):
         return 2 * (self.width() + self.height())
-
 
     def xmin(self, vp_xmax=None):
         vp_xmax = vp_xmax or self._viewPortLimit[0]
         return int(self._innerRect[0] * vp_xmax)
 
-
     def xmax(self, vp_xmax=None):
         vp_xmax = vp_xmax or self._viewPortLimit[0]
         return int(self._innerRect[2] * vp_xmax)
-
 
     def ymin(self, vp_ymax=None):
         vp_ymax = vp_ymax or self._viewPortLimit[1]
         return int(self._innerRect[1] * vp_ymax)
 
-
     def ymax(self, vp_ymax=None):
         vp_ymax = vp_ymax or self._viewPortLimit[1]
         return int(self._innerRect[3] * vp_ymax)
 
-    def viewPortLimit(self):
-        return self._viewPortLimit
-
-    def rotate(self, rotation, xr=0, yr=0, fractions=False):
+    def rotate(self, rotation, xr=0, yr=0, use_vp_fractions=False):
         if rotation % 90:
             raise ValueError("Multiple of 90° are only accepted for straight rectangles")
 
         rad = rotation * math.pi / 180
-        if not fractions:
+        if not use_vp_fractions:
             xr /= self._viewPortLimit[0]
             yr /= self._viewPortLimit[1]
 
@@ -137,49 +131,56 @@ class Rect:
         self.__setExtremes(x, y, self._viewPortLimit[0], self._viewPortLimit[1], True)
         return self
 
-    def addOffset(self, offset_x=0, offset_y=0, vp_xmax=None, vp_ymax=None, fractions=False):
-        xmin, xmax = (self._innerRect[0], self._innerRect[2]) if fractions else (self.xmin(), self.xmax())
-        ymin, ymax = (self._innerRect[1], self._innerRect[3]) if fractions else (self.ymin(), self.ymax())
+    def addOffset(self, offset_x=0, offset_y=0, vp_xmax=None, vp_ymax=None, use_vp_fractions=False):
+        xmin, xmax = (self._innerRect[0], self._innerRect[2]) if use_vp_fractions else (self.xmin(), self.xmax())
+        ymin, ymax = (self._innerRect[1], self._innerRect[3]) if use_vp_fractions else (self.ymin(), self.ymax())
         self.__setExtremes((xmin + offset_x, xmax + offset_x), (ymin + offset_y, ymax + offset_y), vp_xmax, vp_ymax,
-                           fractions)
+                           use_vp_fractions)
         return self
 
-    def addScaleFactor(self, factor_x=1, factor_y=1, vp_xmax=None, vp_ymax=None, fractions=False):
-        xmin, xmax = (self._innerRect[0], self._innerRect[2]) if fractions else (self.xmin(), self.xmax())
-        ymin, ymax = (self._innerRect[1], self._innerRect[3]) if fractions else (self.ymin(), self.ymax())
+    def addScaleFactor(self, factor_x=1, factor_y=1, vp_xmax=None, vp_ymax=None, use_vp_fractions=False):
+        xmin, xmax = (self._innerRect[0], self._innerRect[2]) if use_vp_fractions else (self.xmin(), self.xmax())
+        ymin, ymax = (self._innerRect[1], self._innerRect[3]) if use_vp_fractions else (self.ymin(), self.ymax())
         self.__setExtremes((xmin * factor_x, xmax * factor_x), (ymin * factor_y, ymax * factor_y), vp_xmax, vp_ymax,
-                           fractions)
+                           use_vp_fractions)
         return self
-    def addBorder(self, borderx=0, bordery=0, fractions=False, expand=True):
-        _borderx, _bordery = (borderx / self._viewPortLimit[0], bordery / self._viewPortLimit[1]) if not fractions else (borderx, bordery)
-        borderx, bordery = (self._viewPortLimit[0] * _borderx, self._viewPortLimit[1] * _bordery) if fractions else (borderx, bordery)
+
+    def addBorder(self, borderx=0, bordery=0, use_vp_fractions=False, expand=True):
+        _borderx, _bordery = (
+        borderx / self._viewPortLimit[0], bordery / self._viewPortLimit[1]) if not use_vp_fractions else (borderx, bordery)
+        borderx, bordery = (self._viewPortLimit[0] * _borderx, self._viewPortLimit[1] * _bordery) if use_vp_fractions else (
+        borderx, bordery)
 
         if self.xmin() < borderx and expand:
             self._innerRect = (0, self._innerRect[1], self._innerRect[2], self._innerRect[3])
-            self.scaleReference(self._viewPortLimit[0] + borderx - self.xmin(), self._viewPortLimit[1])
+            self.scaleViewportLimit(self._viewPortLimit[0] + borderx - self.xmin(), self._viewPortLimit[1])
         else:
-            self._innerRect = (max(0, self._innerRect[0] - _borderx), self._innerRect[1], self._innerRect[2], self._innerRect[3])
+            self._innerRect = (
+            max(0, self._innerRect[0] - _borderx), self._innerRect[1], self._innerRect[2], self._innerRect[3])
 
         if borderx > (self._viewPortLimit[0] - self.xmax()) and expand:
-            self.scaleReference(borderx + self.xmax(), self._viewPortLimit[1])
+            self.scaleViewportLimit(borderx + self.xmax(), self._viewPortLimit[1])
             self._innerRect = (self._innerRect[0], self._innerRect[1], 1, self._innerRect[3])
         else:
-            self._innerRect = (self._innerRect[0], self._innerRect[1], min(1, self._innerRect[2] + _borderx), self._innerRect[3])
+            self._innerRect = (
+            self._innerRect[0], self._innerRect[1], min(1, self._innerRect[2] + _borderx), self._innerRect[3])
 
         if self.ymin() < bordery and expand:
             self._innerRect = (self._innerRect[0], 0, self._innerRect[2], self._innerRect[3])
-            self.scaleReference(self._viewPortLimit[0], self._viewPortLimit[1] + bordery - self.ymin())
+            self.scaleViewportLimit(self._viewPortLimit[0], self._viewPortLimit[1] + bordery - self.ymin())
         else:
-            self._innerRect = (self._innerRect[0], max(0, self._innerRect[1] - _bordery), self._innerRect[2], self._innerRect[3])
+            self._innerRect = (
+            self._innerRect[0], max(0, self._innerRect[1] - _bordery), self._innerRect[2], self._innerRect[3])
 
         if bordery > self._viewPortLimit[1] - self.ymax() and expand:
-            self.scaleReference(self._viewPortLimit[0], bordery + self.ymax())
+            self.scaleViewportLimit(self._viewPortLimit[0], bordery + self.ymax())
             self._innerRect = (self._innerRect[0], self._innerRect[1], self._innerRect[2], 1)
         else:
-            self._innerRect = (self._innerRect[0], self._innerRect[1], self._innerRect[2], min(1, self._innerRect[3] + _bordery))
+            self._innerRect = (
+            self._innerRect[0], self._innerRect[1], self._innerRect[2], min(1, self._innerRect[3] + _bordery))
 
-    def toBox(self, order='xy', sequence='minmax', fractions=False):
-        vp_xmax, vp_ymax = (1, 1) if fractions else self._viewPortLimit
+    def toBox(self, order='xy', sequence='minmax', use_vp_fractions=False):
+        vp_xmax, vp_ymax = (1, 1) if use_vp_fractions else self._viewPortLimit
         xmin, ymin, xmax, ymax = self.xmin(vp_xmax), self.ymin(vp_ymax), self.xmax(vp_xmax), self.ymax(vp_ymax)
 
         if order == "xy":
@@ -213,12 +214,12 @@ class Rect:
         else:
             raise ValueError("Invalid coordinate order requested")
 
-    def to2Points(self, order='xy', sequence='minmax', fractions=False):
-        c1, c2, c3, c4 = self.toBox(order, sequence, fractions)
+    def to2Points(self, order='xy', sequence='minmax', use_vp_fractions=False):
+        c1, c2, c3, c4 = self.toBox(order, sequence, use_vp_fractions)
         return (c1, c2), (c3, c4)
 
-    def to4Points(self, order='xy', sequence='minmax', fractions=False):
-        c1, c2, c3, c4 = self.toBox(order, sequence, fractions)
+    def to4Points(self, order='xy', sequence='minmax', use_vp_fractions=False):
+        c1, c2, c3, c4 = self.toBox(order, sequence, use_vp_fractions)
         return (c1, c2), (c3, c4), (c1, c4), (c3, c2)
 
     def center(self, order='xy'):
@@ -248,7 +249,6 @@ class Rect:
         y = (min(self.ymin(), rect.ymin()), max(self.ymax(), rect.ymax()))
         self.__setExtremes(x, y, max(self._viewPortLimit[0], rect.vp_xmax), max(self._viewPortLimit[1], rect.vp_ymax))
         return self
-
 
     def getDistFromRect(self, rect, reference="border", type="cartesian"):
         if reference == 'center':
@@ -310,7 +310,7 @@ class Rects:
             raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{method}'")
 
     def __str__(self):
-        return f"SRects ({len(self.rects)} Rects, overall top_left:[{self.viewPort.xmin()}, {self.viewPort.ymin()}] overall bottom_right:[{self.viewPort.xmax()}, {self.viewPort.ymax()}] overall size:[{self.viewPort.width()}, {self.viewPort.height()}] viewport:[{self.viewPort.xref}, {self.viewPort.yref}])"
+        return f"SRects ({len(self.rects)} Rects, overall top_left:[{self.viewPort.xmin()}, {self.viewPort.ymin()}] overall bottom_right:[{self.viewPort.xmax()}, {self.viewPort.ymax()}] overall size:[{self.viewPort.width()}, {self.viewPort.height()}] viewport:[{self.viewPort.getViewPortLimit()}])"
 
     def __len__(self):
         return len(self.rects)
