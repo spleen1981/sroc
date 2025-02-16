@@ -24,7 +24,7 @@ from .canvas import RectCanvas
 from .canvas import RectScanner
 from .canvas import CanvasTiler
 
-__version__ = '0.1'
+__version__ = '0.1.0'
 __author__ = 'Giovanni Cascione'
 
 # Configura il logging

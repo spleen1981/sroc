@@ -15,9 +15,89 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 import math
-import numbers
+
 
 class Rect:
+    """
+    A class to represent a rectangle with various utility methods for manipulation and calculation.
+
+    Attributes:
+    ----------
+    _viewPortLimit : list
+        The viewport limits (vp_xmax, vp_ymax).
+    _innerRect : list
+        The inner rectangle coordinates (xmin, ymin, xmax, ymax).
+
+    Methods:
+    -------
+    __init__(self, points=None, box=None, order='xy', vp_xmax=None, vp_ymax=None, use_vp_fractions=False):
+        Initializes the Rect object with either points or a bounding box.
+    __str__(self):
+        Returns a string representation of the Rect object.
+    __hash__(self):
+        Returns the hash value of the Rect object.
+    __eq__(self, other):
+        Checks if two Rect objects are equal.
+    __setExtremes(self, x, y, vp_xmax=None, vp_ymax=None, use_vp_fractions=False):
+        Sets the extreme coordinates of the rectangle.
+    scaleViewportLimit(self, vp_xmax, vp_ymax):
+        Scales the viewport limits.
+    setViewportLimit(self, vp_xmax, vp_ymax):
+        Sets the viewport limits.
+    getViewPortLimit(self):
+        Returns the viewport limits.
+    fromBox(self, box=(0, 0, 0, 0), order='xy', vp_xmax=None, vp_ymax=None, use_vp_fractions=False):
+        Initializes the rectangle from a bounding box.
+    fromPoints(self, points=((0, 0), (0, 0), (0, 0), (0, 0)), order='xy', vp_xmax=None, vp_ymax=None, use_vp_fractions=False):
+        Initializes the rectangle from a set of points.
+    width(self):
+        Returns the width of the rectangle.
+    height(self):
+        Returns the height of the rectangle.
+    area(self):
+        Returns the area of the rectangle.
+    perimeter(self):
+        Returns the perimeter of the rectangle.
+    xmin(self, vp_xmax=None):
+        Returns the minimum x-coordinate.
+    xmax(self, vp_xmax=None):
+        Returns the maximum x-coordinate.
+    ymin(self, vp_ymax=None):
+        Returns the minimum y-coordinate.
+    ymax(self, vp_ymax=None):
+        Returns the maximum y-coordinate.
+    rotate(self, rotation, xr=0, yr=0, use_vp_fractions=False):
+        Rotates the rectangle by a specified angle.
+    addOffset(self, offset_x=0, offset_y=0, vp_xmax=None, vp_ymax=None, use_vp_fractions=False):
+        Adds an offset to the rectangle coordinates.
+    addScaleFactor(self, factor_x=1, factor_y=1, vp_xmax=None, vp_ymax=None, use_vp_fractions=False):
+        Scales the rectangle by a specified factor.
+    addBorder(self, borderx=0, bordery=0, use_vp_fractions=False, expand=True):
+        Adds a border to the rectangle.
+    toBox(self, order='xy', sequence='minmax', use_vp_fractions=False):
+        Returns the rectangle as a bounding box.
+    to2Points(self, order='xy', sequence='minmax', use_vp_fractions=False):
+        Returns the rectangle as two points.
+    to4Points(self, order='xy', sequence='minmax', use_vp_fractions=False):
+        Returns the rectangle as four points.
+    center(self, order='xy'):
+        Returns the center point of the rectangle.
+    topLeft(self, order='xy'):
+        Returns the top-left point of the rectangle.
+    bottomRight(self, order='xy'):
+        Returns the bottom-right point of the rectangle.
+    __pointProvider(self, x, y, order):
+        Provides a point in the specified order.
+    __pointsDistance(self, x0=0, y0=0, x1=0, y1=0, type="cartesian"):
+        Calculates the distance between two points.
+    union(self, rect):
+        Unites the current rectangle with another rectangle.
+    getDistFromRect(self, rect, reference="border", type="cartesian"):
+        Calculates the distance from another rectangle.
+    _getDistFromStdBox(self, box, reference="border", type="cartesian"):
+        Calculates the distance from a standard box.
+    """
+
     def __init__(self, points=None, box=None, order='xy', vp_xmax=None, vp_ymax=None, use_vp_fractions=False):
         self._viewPortLimit = [0, 0]  # (vp_xmax, vp_ymax)
         self._innerRect = [0, 0, 0, 0]  # (xmin, ymin, xmax, ymax)
@@ -51,8 +131,8 @@ class Rect:
     def scaleViewportLimit(self, vp_xmax, vp_ymax):
         xmin, ymin, xmax, ymax = self._innerRect
         self._innerRect = (
-        min(1, xmin * self._viewPortLimit[0] / vp_xmax), min(1, ymin * self._viewPortLimit[1] / vp_ymax),
-        min(1, xmax * self._viewPortLimit[0] / vp_xmax), min(1, ymax * self._viewPortLimit[1] / vp_ymax))
+            min(1, xmin * self._viewPortLimit[0] / vp_xmax), min(1, ymin * self._viewPortLimit[1] / vp_ymax),
+            min(1, xmax * self._viewPortLimit[0] / vp_xmax), min(1, ymax * self._viewPortLimit[1] / vp_ymax))
         self._viewPortLimit = (vp_xmax, vp_ymax)
 
     def setViewportLimit(self, vp_xmax, vp_ymax):
@@ -147,37 +227,39 @@ class Rect:
 
     def addBorder(self, borderx=0, bordery=0, use_vp_fractions=False, expand=True):
         _borderx, _bordery = (
-        borderx / self._viewPortLimit[0], bordery / self._viewPortLimit[1]) if not use_vp_fractions else (borderx, bordery)
-        borderx, bordery = (self._viewPortLimit[0] * _borderx, self._viewPortLimit[1] * _bordery) if use_vp_fractions else (
+            borderx / self._viewPortLimit[0], bordery / self._viewPortLimit[1]) if not use_vp_fractions else (
         borderx, bordery)
+        borderx, bordery = (
+        self._viewPortLimit[0] * _borderx, self._viewPortLimit[1] * _bordery) if use_vp_fractions else (
+            borderx, bordery)
 
         if self.xmin() < borderx and expand:
             self._innerRect = (0, self._innerRect[1], self._innerRect[2], self._innerRect[3])
             self.scaleViewportLimit(self._viewPortLimit[0] + borderx - self.xmin(), self._viewPortLimit[1])
         else:
             self._innerRect = (
-            max(0, self._innerRect[0] - _borderx), self._innerRect[1], self._innerRect[2], self._innerRect[3])
+                max(0, self._innerRect[0] - _borderx), self._innerRect[1], self._innerRect[2], self._innerRect[3])
 
         if borderx > (self._viewPortLimit[0] - self.xmax()) and expand:
             self.scaleViewportLimit(borderx + self.xmax(), self._viewPortLimit[1])
             self._innerRect = (self._innerRect[0], self._innerRect[1], 1, self._innerRect[3])
         else:
             self._innerRect = (
-            self._innerRect[0], self._innerRect[1], min(1, self._innerRect[2] + _borderx), self._innerRect[3])
+                self._innerRect[0], self._innerRect[1], min(1, self._innerRect[2] + _borderx), self._innerRect[3])
 
         if self.ymin() < bordery and expand:
             self._innerRect = (self._innerRect[0], 0, self._innerRect[2], self._innerRect[3])
             self.scaleViewportLimit(self._viewPortLimit[0], self._viewPortLimit[1] + bordery - self.ymin())
         else:
             self._innerRect = (
-            self._innerRect[0], max(0, self._innerRect[1] - _bordery), self._innerRect[2], self._innerRect[3])
+                self._innerRect[0], max(0, self._innerRect[1] - _bordery), self._innerRect[2], self._innerRect[3])
 
         if bordery > self._viewPortLimit[1] - self.ymax() and expand:
             self.scaleViewportLimit(self._viewPortLimit[0], bordery + self.ymax())
             self._innerRect = (self._innerRect[0], self._innerRect[1], self._innerRect[2], 1)
         else:
             self._innerRect = (
-            self._innerRect[0], self._innerRect[1], self._innerRect[2], min(1, self._innerRect[3] + _bordery))
+                self._innerRect[0], self._innerRect[1], self._innerRect[2], min(1, self._innerRect[3] + _bordery))
 
     def toBox(self, order='xy', sequence='minmax', use_vp_fractions=False):
         vp_xmax, vp_ymax = (1, 1) if use_vp_fractions else self._viewPortLimit
@@ -215,10 +297,12 @@ class Rect:
             raise ValueError("Invalid coordinate order requested")
 
     def to2Points(self, order='xy', sequence='minmax', use_vp_fractions=False):
+        if not order in ('xy', 'yx'): order = 'xy'
         c1, c2, c3, c4 = self.toBox(order, sequence, use_vp_fractions)
         return (c1, c2), (c3, c4)
 
     def to4Points(self, order='xy', sequence='minmax', use_vp_fractions=False):
+        if not order in ('xy', 'yx'): order = 'xy'
         c1, c2, c3, c4 = self.toBox(order, sequence, use_vp_fractions)
         return (c1, c2), (c3, c4), (c1, c4), (c3, c2)
 
@@ -264,7 +348,7 @@ class Rect:
 
     def _getDistFromStdBox(self, box, reference="border", type="cartesian"):
         if reference == 'center':
-            x0, y0 = (box[0]+box[2])/2, (box[1]+box[3])/2
+            x0, y0 = (box[0] + box[2]) / 2, (box[1] + box[3]) / 2
             x1, y1 = self.center()
         elif reference == 'border':
             x0, y0 = 0, 0
@@ -276,6 +360,52 @@ class Rect:
 
 
 class Rects:
+    """
+    A class to manage a collection of Rect objects with various utility methods for manipulation and calculation.
+
+    Attributes:
+    ----------
+    viewPort : Rect
+        The viewport rectangle.
+    tempRect : Rect
+        A temporary rectangle for internal use.
+    inboundMapping : dict
+        Mapping of inbound methods.
+    outboundMapping : dict
+        Mapping of outbound methods.
+    rects : list
+        List of rectangles.
+
+    Methods:
+    -------
+    __init__(self):
+        Initializes the Rects object.
+    __getattr__(self, method):
+        Dynamically handles method calls for inbound and outbound mappings.
+    __str__(self):
+        Returns a string representation of the Rects object.
+    __len__(self):
+        Returns the number of rectangles.
+    updateViewport(self):
+        Updates the viewport rectangle based on the current rectangles.
+    addRect(self, rect, update_viewport=True):
+        Adds a rectangle to the collection.
+    simplifyRects(self, tolerance=5):
+        Simplifies the collection of rectangles by merging close ones.
+    moveRectsFrom(self, rects):
+        Moves rectangles from another Rects object.
+    _addStdBox(self, box, update_viewport=True):
+        Adds a standard box to the collection.
+    _moveStdBoxesFrom(self, boxes):
+        Moves standard boxes from another collection.
+    __getRect(self, index, then_remove=False):
+        Retrieves a rectangle by index.
+    getRect(self, index):
+        Retrieves a rectangle by index without removing it.
+    popRect(self, index):
+        Retrieves and removes a rectangle by index.
+    """
+
     def __init__(self):
         self.viewPort = None
         self.tempRect = Rect()
@@ -370,7 +500,8 @@ class Rects:
                     if not can_merge((1, 3), (0, 2)) and not can_merge((0, 2), (1, 3)):
                         rect_new.append(this_rect)
                     else:
-                        rect_new[-1] = min(this_rect[0], rect_new[-1][0]), min(this_rect[1], rect_new[-1][1]), max(this_rect[2], rect_new[-1][2]), max(this_rect[3], rect_new[-1][3])
+                        rect_new[-1] = min(this_rect[0], rect_new[-1][0]), min(this_rect[1], rect_new[-1][1]), max(
+                            this_rect[2], rect_new[-1][2]), max(this_rect[3], rect_new[-1][3])
                         reset = True
                         break
         self.rects = rect_new
@@ -422,6 +553,32 @@ class Rects:
 
 
 class CactusRects(Rects):
+    """
+    A specialized class derived from Rects to handle specific operations with tolerance and strategy.
+
+    Attributes:
+    ----------
+    tolerance : int
+        The tolerance value for operations.
+    strategy : str
+        The strategy for handling rectangles.
+
+    Methods:
+    -------
+    __init__(self, seedRect, tolerance=5, strategy="full"):
+        Initializes the CactusRects object with a seed rectangle, tolerance, and strategy.
+    addRect(self, rect, update_viewport=True):
+        Adds a rectangle to the collection with specific tolerance and strategy.
+    _addStdBox(self, box, update_viewport=True):
+        Adds a standard box to the collection with specific tolerance and strategy.
+    moveRectsFrom(self, rects):
+        Moves rectangles from another Rects object.
+    _moveStdBoxesFrom(self, boxes):
+        Moves standard boxes from another collection.
+    __getattr__(self, method):
+        Dynamically handles method calls for inbound mappings.
+    """
+
     def __init__(self, seedRect, tolerance=5, strategy="full"):
         super().__init__()
         super().addRect(seedRect)
@@ -452,10 +609,6 @@ class CactusRects(Rects):
                 return True
         return False
 
-    def moveRectsFrom(self, rects):
-        while super().moveRectsFrom(rects):
-            pass
-
     def _addStdBox(self, box, update_viewport=True):
         square_tolerance = self.tolerance ** 2
         dir, dist = self.viewPort._getDistFromStdBox(box, reference="border", type="cartesian_squares")
@@ -479,6 +632,10 @@ class CactusRects(Rects):
                 return True
         return False
 
+    def moveRectsFrom(self, rects):
+        while super().moveRectsFrom(rects):
+            pass
+
     def _moveStdBoxesFrom(self, boxes):
         while super()._moveStdBoxesFrom(boxes):
             pass
@@ -490,6 +647,7 @@ class CactusRects(Rects):
                 inboundMethod = getattr(tempRects, self.inboundMapping[method])
                 inboundMethod(*args, **kwargs)
                 self.moveRectsFrom(tempRects)
+
             return wrapper
         else:
             return super().__getattr__(method)

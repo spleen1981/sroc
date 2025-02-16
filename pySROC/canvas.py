@@ -27,6 +27,52 @@ from .overlay import Rects
 
 
 class RectCanvas():
+    """
+    A class to represent a canvas with rectangles and provide various utility methods for manipulation and visualization.
+
+    Attributes:
+    ----------
+    rotation : int
+        The rotation angle of the canvas.
+    originalCanvas : np.ndarray
+        The original image canvas.
+    image_path : Path
+        The path to the image file.
+    name : str
+        The name of the image file.
+    ext : str
+        The extension of the image file.
+    h_orig : int
+        The original height of the image.
+    w_orig : int
+        The original width of the image.
+    w : int
+        The current width of the image.
+    h : int
+        The current height of the image.
+    rects : Rects
+        A collection of rectangles.
+    _rects_labels : list
+        Labels for the rectangles.
+    _rects_groups : list
+        Groups for the rectangles.
+
+    Methods:
+    -------
+    __init__(self, image_path=None, image_np=None):
+        Initializes the RectCanvas object with an image path or numpy array.
+    getOriginalCanvas(self, color=False, crop_to_viewport=False, show_rects=False, show_labels=False):
+        Returns the original canvas with optional modifications.
+    getCurrentCanvas(self, extend=True, color=False, crop_to_viewport=False, show_rects=False, show_labels=False):
+        Returns the current canvas with optional modifications.
+    originalCanvasSize(self):
+        Returns the size of the original canvas.
+    currentCanvasSize(self):
+        Returns the size of the current canvas.
+    moveRectsFrom(self, rects):
+        Moves rectangles from another Rects object.
+    """
+
     def __init__(self, image_path=None, image_np=None):
         # TODO double check rotation is actually needed
         self.rotation = 0
@@ -168,6 +214,19 @@ class RectCanvas():
 
 
 class RectScanner(RectCanvas):
+    """
+    A class derived from RectCanvas to scan and detect filled rectangles in an image.
+
+    Methods:
+    -------
+    __groupPointsToLines(self, scan_coor):
+        Groups points into lines based on the scan coordinate.
+    __groupLinesToRects(self, lines, scan_coor):
+        Groups lines into rectangles based on the scan coordinate.
+    scanFilledRects(self, color_treshold=200, min_lenght=20, adjacent_margin=0, limits_margin=1):
+        Scans the image for filled rectangles based on the specified thresholds and margins.
+    """
+
     def __groupPointsToLines(self, scan_coor):
         lines = []
         image = self.getCurrentCanvas()
@@ -246,11 +305,49 @@ class RectScanner(RectCanvas):
         self.length_treshold = min_lenght
         self.adjacent_margin = adjacent_margin
         self.limits_margin = limits_margin
-        self.rects._moveStdBoxesFrom(self.__groupLinesToRects(self.__groupPointsToLines(1), 1)+self.__groupLinesToRects(self.__groupPointsToLines(0), 0))
+        self.rects._moveStdBoxesFrom(
+            self.__groupLinesToRects(self.__groupPointsToLines(1), 1) + self.__groupLinesToRects(
+                self.__groupPointsToLines(0), 0))
         return self.rects
 
 
 class CanvasTiler(RectCanvas):
+    """
+    A class derived from RectCanvas to handle tiling operations on the canvas.
+
+    Attributes:
+    ----------
+    tile_width : int
+        The width of each tile.
+    tile_height : int
+        The height of each tile.
+    tiles_target_no : int
+        The target number of tiles.
+    __cachedCurrentCanvas : np.ndarray
+        Cached current canvas for efficient access.
+
+    Methods:
+    -------
+    __init__(self, image_path=None, image_np=None, rotation=0, tiles_target_no=64, tile_width=640, tile_height=640, force_horizontal=True):
+        Initializes the CanvasTiler object with specified parameters.
+    lenX(self):
+        Returns the number of tiles along the x-axis.
+    lenY(self):
+        Returns the number of tiles along the y-axis.
+    __len__(self):
+        Returns the total number of tiles.
+    getTileName(self, index_x, index_y):
+        Returns the name of the tile at the specified indices.
+    saveTiles(self, output_path):
+        Saves the tiles to the specified output path.
+    getTile(self, index_x, index_y):
+        Returns the tile at the specified indices.
+    joinTiles(self, tiles_path, output_path, restore_original_size=False):
+        Joins the tiles from the specified path and saves the result.
+    tilesCrawler(self, crawler_callback, threads=1, status_callback=None, color=False, results_on_original_canvas=True):
+        Crawls through the tiles and applies the specified callback function.
+    """
+
     def __init__(self, image_path=None, image_np=None, rotation=0, tiles_target_no=64, tile_width=640, tile_height=640,
                  force_horizontal=True):
         self.tile_width = tile_width
