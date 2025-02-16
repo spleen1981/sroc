@@ -1,8 +1,8 @@
-# pySROC
+# SROC
 
-## Straight Rectangles on Canvas for Python
+## Straight Rectangles on Canvas
 
-**pySROC** (Straight Rectangles on Canvas for Python) is a Python library for manipulating straight rectangles and
+**SROC** (Straight Rectangles on Canvas) is a Python library for manipulating straight rectangles and
 handling interactions with a canvas. It provides classes and methods for creating, modifying, and analyzing rectangles,
 as well as handling image tiling and canvas scanning operations.
 
@@ -25,7 +25,7 @@ as well as handling image tiling and canvas scanning operations.
 The `Rect` class represents a rectangle and provides various methods for manipulation and calculation.
 
 ```python
-from pySROC import Rect
+from sroc import Rect
 
 # Create a rectangle from a bounding box (x0, y0, x1, y1)
 # Same as Rect().fromBox()
@@ -64,8 +64,8 @@ Rectangle coordinates can be set or retrieved as fractions of the viewport setti
 The `Rects` class manages a collection of `Rect` objects and provides methods for manipulation and calculation.
 
 ```python
-from pySROC import Rect
-from pySROC import Rects
+from sroc import Rect
+from sroc import Rects
 
 # Create a collection of rectangles
 rects1 = Rects()
@@ -93,7 +93,7 @@ The `CactusRects` class is a specialized class derived from `Rects` to handle sp
 strategy.
 
 ```python
-from pySROC import CactusRects
+from sroc import CactusRects
 
 # Create a CactusRects object with a seed rectangle
 cactus_rects = CactusRects(seedRect=Rect(box=(0, 0, 100, 100)), tolerance=5, strategy="full")
@@ -108,7 +108,7 @@ The `RectCanvas` class represents a canvas with rectangles and provides various 
 visualization.
 
 ```python
-from pySROC import RectCanvas
+from sroc import RectCanvas
 
 # Create a RectCanvas object from an image path
 canvas = RectCanvas(image_path="path/to/image.png")
@@ -125,7 +125,7 @@ current_canvas = canvas.getCurrentCanvas(show_rects=True, show_labels=True)
 The `RectScanner` class is derived from `RectCanvas` to scan and detect filled rectangles in an image.
 
 ```python
-from pySROC.overlay import RectScanner
+from sroc.overlay import RectScanner
 
 # Create a RectScanner object from an image path
 scanner = RectScanner(image_path="path/to/image.png")
@@ -139,7 +139,7 @@ filled_rects = scanner.scanFilledRects(color_treshold=200, min_lenght=20)
 The `CanvasTiler` class is derived from `RectCanvas` to handle tiling operations on the canvas.
 
 ```python
-from pySROC.overlay import CanvasTiler
+from sroc.overlay import CanvasTiler
 
 # Create a CanvasTiler object from an image path
 tiler = CanvasTiler(image_path="path/to/image.png", tile_width=640, tile_height=640)

@@ -58,7 +58,6 @@ jobs:
 
       - name: Publish release distributions to PyPI
         run: |
-          cd pySROC
           python -m pip install poetry
           poetry config pypi-token.pypi ${{ secrets.PYPI_API_TOKEN }}
           poetry publish
