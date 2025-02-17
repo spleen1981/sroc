@@ -467,9 +467,9 @@ class CanvasTiler(RectCanvas):
         def __crawler(x, y):
             nonlocal crawler_counter
             crawler_counter += 1
-            res = crawler_callback(tile(x, y))
             if not status_callback is None:
                 status_callback(crawler_counter)
+            res = crawler_callback(tile(x, y))
             if isinstance(res, dict) and 'offsetBoxes' in res:
                 for i in range(len(res['offsetBoxes'])):
                     item = res['offsetBoxes'][i]
