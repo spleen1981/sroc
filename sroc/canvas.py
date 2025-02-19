@@ -355,9 +355,7 @@ class CanvasTiler(RectCanvas):
         # self.force_horizontal = force_horizontal
         self.tiles_target_no = tiles_target_no
         super().__init__(image_path=image_path, image_np=image_np)
-
         self.__cachedCurrentCanvas = None
-
         if self.w % self.tile_width:
             self.w = int(self.w + (self.tile_width - self.w % self.tile_width))
         if self.h % self.tile_height:
@@ -458,31 +456,30 @@ class CanvasTiler(RectCanvas):
 
         return str(file_out)
 
-    def tilesCrawler(self, crawler_callback, threads=1, status_callback=None, color=False,
+    def tilesCrawler(self, crawler_callback, workers='auto', parallelization_mode='multiprocessing', status_callback=None, color=False,
                      results_on_original_canvas=True):
         self.__cachedCurrentCanvas = self.getCurrentCanvas(color=color)
-        tile = self.getTile
-        crawler_counter = 0
 
-        def __crawler(x, y):
-            nonlocal crawler_counter
-            crawler_counter += 1
-            if not status_callback is None:
-                status_callback(crawler_counter)
-            res = crawler_callback(tile(x, y))
-            if isinstance(res, dict) and 'offsetBoxes' in res:
-                for i in range(len(res['offsetBoxes'])):
-                    item = res['offsetBoxes'][i]
-                    rect = Rect().fromBox(item)
-                    rect.addOffset(offset_x=self.tile_width * x, offset_y=self.tile_height * y)
-                    if results_on_original_canvas:
-                        rect.addScaleFactor(self.w_orig / self.w, self.h_orig / self.h)
-                    res['offsetBoxes'][i] = rect.toBox()
-            return res
+        # Preparing arguments for the crawler
+        crawler_args_list = []
+        tiles_map = list(product(range(self.lenX()), range(self.lenY())))
+        ratiox = self.w_orig / self.w
+        ratioy = self.h_orig / self.h
+        for i in range(len(tiles_map)):
+            x = tiles_map[i][0]
+            y = tiles_map[i][1]
+            crawler_args_list.append((self.getTile(x, y), self.tile_width * x, self.tile_height * y, ratiox, ratioy,
+                                       crawler_callback, status_callback, results_on_original_canvas, i + 1, len(tiles_map)))
 
-        callback_args_list = list(product(range(self.lenX()), range(self.lenY())))
-        with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
-            results = list(executor.map(lambda args: __crawler(*args), callback_args_list))
+        # Choosing parallel executor
+        if workers == 'auto':
+            workers = None
+        executor = (concurrent.futures.ThreadPoolExecutor(max_workers=workers)
+                    if parallelization_mode == "multithreading"
+                    else concurrent.futures.ProcessPoolExecutor(max_workers=workers))
+
+        with executor as exec:
+            results = list(exec.map(_canvasTilerGlobalCrawler, crawler_args_list))
 
         combined_results = {}
         if len(results):
@@ -495,3 +492,19 @@ class CanvasTiler(RectCanvas):
 
         self.__cachedCurrentCanvas = None
         return combined_results
+
+def _canvasTilerGlobalCrawler(args):
+    tile, offset_x, offset_y, ratiox, ratioy, crawler_callback, status_callback, results_on_original_canvas, crawler_counter, total_tiles = args
+
+    if status_callback is not None:
+        status_callback(int(crawler_counter/total_tiles*100))
+    res = crawler_callback(tile)
+    if isinstance(res, dict) and 'offsetBoxes' in res:
+        for i in range(len(res['offsetBoxes'])):
+            item = res['offsetBoxes'][i]
+            rect = Rect().fromBox(item)
+            rect.addOffset(offset_x=offset_x, offset_y=offset_y)
+            if results_on_original_canvas:
+                rect.addScaleFactor(ratiox, ratioy)
+            res['offsetBoxes'][i] = rect.toBox()
+    return res
