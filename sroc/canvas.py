@@ -137,6 +137,16 @@ class RectCanvas():
             raise ValueError("rects_labels must be a list")
         self._rects_labels = labels
 
+    def saveCanvas(self, path, original_size=True, color=False, crop_to_viewport=False, show_rects=False, show_labels=False):
+        kwargs={'color':color, 'crop_to_viewport':crop_to_viewport, 'show_rects':show_rects, 'show_labels':show_labels}
+        print(kwargs)
+        if original_size:
+            dressed_pic = self.getOriginalCanvas(**kwargs)
+        else:
+            dressed_pic = self.getOriginalCanvas(**kwargs, extend=True)
+
+        cv2.imwrite(Path(path), dressed_pic)
+
     def getOriginalCanvas(self, color=False, crop_to_viewport=False, show_rects=False, show_labels=False):
         if not self.originalCanvas is None:
             if color and len(self.originalCanvas.shape) == 2:
