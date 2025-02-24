@@ -228,9 +228,9 @@ class Rect:
     def addBorder(self, borderx=0, bordery=0, use_vp_fractions=False, expand=True):
         _borderx, _bordery = (
             borderx / self._viewPortLimit[0], bordery / self._viewPortLimit[1]) if not use_vp_fractions else (
-        borderx, bordery)
+            borderx, bordery)
         borderx, bordery = (
-        self._viewPortLimit[0] * _borderx, self._viewPortLimit[1] * _bordery) if use_vp_fractions else (
+            self._viewPortLimit[0] * _borderx, self._viewPortLimit[1] * _bordery) if use_vp_fractions else (
             borderx, bordery)
 
         if self.xmin() < borderx and expand:
@@ -318,15 +318,6 @@ class Rect:
     def __pointProvider(self, x, y, order):
         return (int(x), int(y)) if order == 'xy' else (int(y), int(x))
 
-    def __pointsDistance(self, x0=0, y0=0, x1=0, y1=0, type="cartesian"):
-        if type == "cartesian":
-            return int(math.sqrt((x1 - x0) ** 2 + (y1 - y0) ** 2))
-        elif type == "cartesian_squares":
-            return (x1 - x0) ** 2 + (y1 - y0) ** 2
-        elif type == "manhattan":
-            return abs(x1 - x0) + abs(y1 - y0)
-        else:
-            raise ValueError("Unknown distance type specified")
 
     def union(self, rect):
         x = (min(self.xmin(), rect.xmin()), max(self.xmax(), rect.xmax()))
@@ -347,16 +338,33 @@ class Rect:
         return (x1, y1), self.__pointsDistance(x0, y0, x1, y1, type)
 
     def _getDistFromStdBox(self, box, reference="border", type="cartesian"):
+        return _stdBoxesOps().stdBoxesDistance(self.toBox(), box, reference=reference, type=type)
+
+
+class _stdBoxesOps():
+    def stdBoxesDistance(self, box1, box2, reference="border", type="cartesian"):
         if reference == 'center':
-            x0, y0 = (box[0] + box[2]) / 2, (box[1] + box[3]) / 2
-            x1, y1 = self.center()
+            x0, y0 = box1.center()
+            x1, y1 = box2.center()
         elif reference == 'border':
             x0, y0 = 0, 0
-            x1 = box[0] - self.xmax() if self.xmax() < box[0] else self.xmin() - box[2] if self.xmin() > box[2] else 0
-            y1 = box[1] - self.ymax() if self.ymax() < box[1] else self.ymin() - box[3] if self.ymin() > box[3] else 0
+            x1 = box2[0] - box1[2] if box1[2] < box2[0] else box1[0] - box2[2] if box1[0] > box2[2] else 0
+            y1 = box2[2] - box1[3] if box1[3] < box2[2] else box1[2] - box2[3] if box1[2] > box2[3] else 0
         else:
             raise ValueError("Invalid reference to calculate distance")
-        return (x1, y1), self.__pointsDistance(x0, y0, x1, y1, type)
+        return _stdPointsOps().pointsDistance(x0, y0, x1, y1, type=type)
+
+
+class _stdPointsOps():
+    def pointsDistance(self, x0=0, y0=0, x1=0, y1=0, type="cartesian"):
+        if type == "cartesian":
+            return int(math.sqrt((x1 - x0) ** 2 + (y1 - y0) ** 2))
+        elif type == "cartesian_squares":
+            return (x1 - x0) ** 2 + (y1 - y0) ** 2
+        elif type == "manhattan":
+            return abs(x1 - x0) + abs(y1 - y0)
+        else:
+            raise ValueError("Unknown distance type specified")
 
 
 class Rects:
