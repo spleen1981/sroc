@@ -579,6 +579,7 @@ class CactusRects(Rects):
         super().__init__()
         super().addRect(seedRect)
         self.tolerance = tolerance
+        self.square_tolerance = self.tolerance ** 2
         self.strategy = strategy
         self.stopper_callback = None
 
@@ -586,51 +587,41 @@ class CactusRects(Rects):
         self.stopper_callback = callback
 
     def addRect(self, rect, update_viewport=True):
-        square_tolerance = self.tolerance ** 2
-        dir, dist = self.viewPort.getDistFromRect(rect, reference="border", type="cartesian_squares")
-        if dist > square_tolerance:
+        if not self._stdBoxIsCloseToVP(rect.toBox()):
             return False
-
-        boundary_rects = set()
-        xmin, ymin, xmax, ymax = self.viewPort.xmin(), self.viewPort.ymin(), self.viewPort.xmax(), self.viewPort.ymax()
-
-        if self.strategy == 'full':
-            boundary_rects.update(r for r in self.rects)
-        elif self.strategy == 'boundaries_only':
-            boundary_rects.update(r for r in self.rects if r[0] == xmin or r[1] == ymin or r[2] == xmax or r[3] == ymax)
-        else:
-            raise ValueError("Unknown merge strategy")
-
-        for boundary_rect in boundary_rects:
-            _, rect_dist = rect.getDistFromRect(self.tempRect.fromBox(boundary_rect), reference="border",
-                                                type="cartesian_squares")
-            if rect_dist <= square_tolerance:
-                super().addRect(rect, update_viewport=update_viewport)
-                return True
-        return False
+        return self._maybeAddStdBoxToSearchSet(box=rect.toBox(), update_viewport=update_viewport)
 
     def _addStdBox(self, box, update_viewport=True):
-        square_tolerance = self.tolerance ** 2
-        dir, dist = self.viewPort._getDistFromStdBox(box, reference="border", type="cartesian_squares")
-        if dist > square_tolerance:
+        if not self._stdBoxIsCloseToVP(box):
             return False
+        return self._maybeAddStdBoxToSearchSet(box=box, update_viewport=update_viewport)
 
-        boundary_rects = set()
-        xmin, ymin, xmax, ymax = self.viewPort.xmin(), self.viewPort.ymin(), self.viewPort.xmax(), self.viewPort.ymax()
-        if self.strategy == 'full':
-            boundary_rects.update(r for r in self.rects)
-        elif self.strategy == 'boundaries_only':
-            boundary_rects.update(r for r in self.rects if r[0] == xmin or r[1] == ymin or r[2] == xmax or r[3] == ymax)
-        else:
-            raise ValueError("Unknown merge strategy")
-        self.tempRect.fromBox(box)
-        for boundary_rect in boundary_rects:
-            _, rect_dist = self.tempRect._getDistFromStdBox(boundary_rect, reference="border",
-                                                            type="cartesian_squares")
-            if rect_dist <= square_tolerance:
+    def _maybeAddStdBoxToSearchSet(self, box, update_viewport=True):
+        for boundary_rect in self._getSearchSet():
+            rect_dist = _stdBoxesOps().stdBoxesDistance(box, boundary_rect, reference="border",
+                                                   type="cartesian_squares")
+            if rect_dist <= self.square_tolerance:
                 super()._addStdBox(box, update_viewport=update_viewport)
                 return True
         return False
+
+    def _stdBoxIsCloseToVP(self, box):
+        dist = self.viewPort._getDistFromStdBox(box, reference="border", type="cartesian_squares")
+        if dist > self.square_tolerance:
+            return False
+        return True
+
+    def _getSearchSet(self):
+        boundary_rects = set()
+        xmin, ymin, xmax, ymax = self.viewPort.xmin(), self.viewPort.ymin(), self.viewPort.xmax(), self.viewPort.ymax()
+        if self.strategy == 'full':
+            boundary_rects.update(r for r in self.rects)
+        elif self.strategy == 'boundaries_only':
+            boundary_rects.update(r for r in self.rects if r[0] == xmin or r[1] == ymin or r[2] == xmax or r[3] == ymax)
+        else:
+            raise ValueError("Unknown merge strategy")
+
+        return boundary_rects
 
     def moveRectsFrom(self, rects):
         while super().moveRectsFrom(rects):
