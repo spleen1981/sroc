@@ -580,6 +580,10 @@ class CactusRects(Rects):
         super().addRect(seedRect)
         self.tolerance = tolerance
         self.strategy = strategy
+        self.stopper_callback = None
+
+    def setStopperCallback(self, callback):
+        self.stopper_callback = callback
 
     def addRect(self, rect, update_viewport=True):
         square_tolerance = self.tolerance ** 2
@@ -630,11 +634,15 @@ class CactusRects(Rects):
 
     def moveRectsFrom(self, rects):
         while super().moveRectsFrom(rects):
-            pass
+            if not self.stopper_callback is None:
+                if self.stopper_callback(self.rects[-1]) == True:
+                    break
 
     def _moveStdBoxesFrom(self, boxes):
         while super()._moveStdBoxesFrom(boxes):
-            pass
+            if not self.stopper_callback is None:
+                if self.stopper_callback(self.rects[-1]) == True:
+                    break
 
     def __getattr__(self, method):
         if method in self.inboundMapping:
