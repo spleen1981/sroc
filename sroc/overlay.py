@@ -318,11 +318,23 @@ class Rect:
     def __pointProvider(self, x, y, order):
         return (int(x), int(y)) if order == 'xy' else (int(y), int(x))
 
+    def union(self, rect=None, std_box=None):
+        x = [self.xmin(), self.xmax()]
+        y = [self.ymin(), self.ymax()]
 
-    def union(self, rect):
-        x = (min(self.xmin(), rect.xmin()), max(self.xmax(), rect.xmax()))
-        y = (min(self.ymin(), rect.ymin()), max(self.ymax(), rect.ymax()))
-        self.__setExtremes(x, y, max(self._viewPortLimit[0], rect.vp_xmax), max(self._viewPortLimit[1], rect.vp_ymax))
+        if not rect is None:
+            new_viewport = max(self._viewPortLimit[0], rect._viewPortLimit[0]), max(self._viewPortLimit[1],
+                                                                                    rect._viewPortLimit[1])
+            self.scaleViewportLimit(new_viewport[0], new_viewport[1])
+            rect.scaleViewportLimit(new_viewport[0], new_viewport[1])
+
+            x.extend = [rect.xmin(), rect.xmax()]
+            y.extend = [rect.ymin(), rect.ymax()]
+        elif not std_box is None:
+            x.extend = [std_box[0], std_box[2]]
+            y.extend = [std_box[1], std_box[3]]
+
+        self.__setExtremes(x, y)
         return self
 
     def getDistFromRect(self, rect, reference="border", type="cartesian"):
