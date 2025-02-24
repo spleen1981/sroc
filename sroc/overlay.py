@@ -338,16 +338,7 @@ class Rect:
         return self
 
     def getDistFromRect(self, rect, reference="border", type="cartesian"):
-        if reference == 'center':
-            x0, y0 = rect.center()
-            x1, y1 = self.center()
-        elif reference == 'border':
-            x0, y0 = 0, 0
-            x1 = rect.xmin() - self.xmax() if self.xmax() < rect.xmin() else self.xmin() - rect.xmax() if self.xmin() > rect.xmax() else 0
-            y1 = rect.ymin() - self.ymax() if self.ymax() < rect.ymin() else self.ymin() - rect.ymax() if self.ymin() > rect.ymax() else 0
-        else:
-            raise ValueError("Invalid reference to calculate distance")
-        return (x1, y1), self.__pointsDistance(x0, y0, x1, y1, type)
+        return self._getDistFromStdBox(box=rect.toBox(), reference=reference, type=type)
 
     def _getDistFromStdBox(self, box, reference="border", type="cartesian"):
         return _stdBoxesOps().stdBoxesDistance(self.toBox(), box, reference=reference, type=type)
@@ -485,13 +476,12 @@ class Rects:
                                       max([rect[2] for rect in self.rects]), max([rect[3] for rect in self.rects])))
 
     def addRect(self, rect, update_viewport=True):
-        self.rects.append(rect.toBox())
+        return self._addStdBox(box=rect.toBox(), update_viewport=update_viewport)
+
+    def _addStdBox(self, box, update_viewport=True):
+        self.rects.append(box)
         if update_viewport:
-            # extend mainRect
-            if self.viewPort is None:
-                self.viewPort = Rect().fromBox(rect.toBox())
-            else:
-                self.viewPort.union(rect)
+            self.viewPort.union(std_box=box)
         return True
 
     def simplifyRects(self, tolerance=5):
@@ -529,31 +519,15 @@ class Rects:
         return self
 
     def moveRectsFrom(self, rects):
-        startLen = len(rects)
-        for i in range(len(rects) - 1, -1, -1):
-            if self.addRect(Rect().fromBox(rects.rects[i]), update_viewport=False):
-                rects.rects.pop(i)
-        if startLen > len(rects):
-            self.updateViewport()
-            return True
-        return False
+        self.viewPort.union(std_box=rects.viewPort.toBox())
+        return self._moveStdBoxesFrom(boxes=rects.rects, maybe_update_viewport=False)
 
-    def _addStdBox(self, box, update_viewport=True):
-        self.rects.append(box)
-        if update_viewport:
-            # extend mainRect
-            if self.viewPort is None:
-                self.viewPort = Rect().fromBox(box)
-            else:
-                self.viewPort.union(box)
-        return True
-
-    def _moveStdBoxesFrom(self, boxes):
+    def _moveStdBoxesFrom(self, boxes, maybe_update_viewport=True):
         startLen = len(boxes)
         for i in range(len(boxes) - 1, -1, -1):
             if self._addStdBox(boxes[i], update_viewport=False):
                 boxes.pop(i)
-        if startLen > len(boxes):
+        if maybe_update_viewport and startLen > len(boxes):
             self.updateViewport()
             return True
         return False
