@@ -470,10 +470,12 @@ class Rects:
     def __len__(self):
         return len(self.rects)
 
-    def updateViewport(self):
+    def updateViewport(self, vp_xmax=0, vp_ymax=0):
         if len(self.rects):
             self.viewPort = Rect(box=(min([rect[0] for rect in self.rects]), min([rect[1] for rect in self.rects]),
                                       max([rect[2] for rect in self.rects]), max([rect[3] for rect in self.rects])))
+        if vp_xmax or vp_ymax:
+            self.viewPort.union(std_box=(0, 0, vp_xmax, vp_ymax))
 
     def addRect(self, rect, update_viewport=True):
         return self._addStdBox(box=rect.toBox(), update_viewport=update_viewport)
