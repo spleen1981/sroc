@@ -328,11 +328,11 @@ class Rect:
             self.scaleViewportLimit(new_viewport[0], new_viewport[1])
             rect.scaleViewportLimit(new_viewport[0], new_viewport[1])
 
-            x.extend = [rect.xmin(), rect.xmax()]
-            y.extend = [rect.ymin(), rect.ymax()]
+            x.extend([rect.xmin(), rect.xmax()])
+            y.extend([rect.ymin(), rect.ymax()])
         elif not std_box is None:
-            x.extend = [std_box[0], std_box[2]]
-            y.extend = [std_box[1], std_box[3]]
+            x.extend([std_box[0], std_box[2]])
+            y.extend([std_box[1], std_box[3]])
 
         self.__setExtremes(x, y)
         return self
