@@ -352,7 +352,7 @@ class _stdBoxesOps():
         elif reference == 'border':
             x0, y0 = 0, 0
             x1 = box2[0] - box1[2] if box1[2] < box2[0] else box1[0] - box2[2] if box1[0] > box2[2] else 0
-            y1 = box2[2] - box1[3] if box1[3] < box2[2] else box1[2] - box2[3] if box1[2] > box2[3] else 0
+            y1 = box2[1] - box1[3] if box1[3] < box2[1] else box1[1] - box2[3] if box1[1] > box2[3] else 0
         else:
             raise ValueError("Invalid reference to calculate distance")
         return _stdPointsOps().pointsDistance(x0, y0, x1, y1, type=type)
