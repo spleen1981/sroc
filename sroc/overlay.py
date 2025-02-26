@@ -523,8 +523,10 @@ class Rects:
         return self
 
     def moveRectsFrom(self, rects):
-        self.viewPort.union(std_box=rects.viewPort.toBox())
-        return self._moveStdBoxesFrom(boxes=rects.rects, maybe_update_viewport=False)
+        res=self._moveStdBoxesFrom(boxes=rects.rects, maybe_update_viewport=False)
+        if res:
+            self.viewPort.union(std_box=rects.viewPort.toBox())
+        return res
 
     def _moveStdBoxesFrom(self, boxes, maybe_update_viewport=True):
         startLen = len(boxes)
