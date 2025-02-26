@@ -483,6 +483,8 @@ class Rects:
     def _addStdBox(self, box, update_viewport=True):
         self.rects.append(box)
         if update_viewport:
+            if self.viewPort is None:
+                self.viewPort=Rect(box=box)
             self.viewPort.union(std_box=box)
         return True
 
