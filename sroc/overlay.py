@@ -533,8 +533,9 @@ class Rects:
         for i in range(len(boxes) - 1, -1, -1):
             if self._addStdBox(boxes[i], update_viewport=False):
                 boxes.pop(i)
-        if maybe_update_viewport and startLen > len(boxes):
-            self.updateViewport()
+        if startLen > len(boxes):
+            if maybe_update_viewport:
+                self.updateViewport()
             return True
         return False
 
