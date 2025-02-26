@@ -582,7 +582,7 @@ class CactusRects(Rects):
 
     def __init__(self, seedRect, tolerance=5, strategy="full"):
         super().__init__()
-        super().addRect(seedRect)
+        super()._addStdBox(seedRect.toBox())
         self.tolerance = tolerance
         self.square_tolerance = self.tolerance ** 2
         self.strategy = strategy
