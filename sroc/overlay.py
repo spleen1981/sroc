@@ -602,7 +602,8 @@ class CactusRects(Rects):
         return self._maybeAddStdBoxToSearchSet(box=box, update_viewport=update_viewport)
 
     def _maybeAddStdBoxToSearchSet(self, box, update_viewport=True):
-        for boundary_rect in self._getSearchSet():
+        src_set=self._getSearchSet()
+        for boundary_rect in src_set:
             rect_dist = _stdBoxesOps().stdBoxesDistance(box, boundary_rect, reference="border",
                                                    type="cartesian_squares")
             if rect_dist <= self.square_tolerance:
@@ -611,10 +612,7 @@ class CactusRects(Rects):
         return False
 
     def _stdBoxIsCloseToVP(self, box):
-        dist = self.viewPort._getDistFromStdBox(box, reference="border", type="cartesian_squares")
-        if dist > self.square_tolerance:
-            return False
-        return True
+        return not self.viewPort._getDistFromStdBox(box, reference="border", type="cartesian_squares") > self.square_tolerance
 
     def _getSearchSet(self):
         boundary_rects = set()
