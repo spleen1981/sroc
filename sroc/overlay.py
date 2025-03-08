@@ -128,15 +128,13 @@ class Rect:
             vp_xmax, vp_ymax = 1, 1
         self._innerRect = (min(x) / vp_xmax, min(y) / vp_ymax, xmax / vp_xmax, ymax / vp_ymax)
 
-    def scaleViewportLimit(self, vp_xmax, vp_ymax):
+    def changeViewportLimits(self, vp_xmax, vp_ymax, scale_inner_rect=True):
         xmin, ymin, xmax, ymax = self._innerRect
-        self._innerRect = (
-            min(1, xmin * self._viewPortLimit[0] / vp_xmax), min(1, ymin * self._viewPortLimit[1] / vp_ymax),
-            min(1, xmax * self._viewPortLimit[0] / vp_xmax), min(1, ymax * self._viewPortLimit[1] / vp_ymax))
         self._viewPortLimit = (vp_xmax, vp_ymax)
-
-    def setViewportLimit(self, vp_xmax, vp_ymax):
-        self._viewPortLimit = (vp_xmax, vp_ymax)
+        if scale_inner_rect:
+            self._innerRect = (
+                min(1, xmin * self._viewPortLimit[0] / vp_xmax), min(1, ymin * self._viewPortLimit[1] / vp_ymax),
+                min(1, xmax * self._viewPortLimit[0] / vp_xmax), min(1, ymax * self._viewPortLimit[1] / vp_ymax))
 
     def getViewPortLimit(self):
         return self._viewPortLimit
@@ -235,13 +233,13 @@ class Rect:
 
         if self.xmin() < borderx and expand:
             self._innerRect = (0, self._innerRect[1], self._innerRect[2], self._innerRect[3])
-            self.scaleViewportLimit(self._viewPortLimit[0] + borderx - self.xmin(), self._viewPortLimit[1])
+            self.changeViewportLimits(self._viewPortLimit[0] + borderx - self.xmin(), self._viewPortLimit[1])
         else:
             self._innerRect = (
                 max(0, self._innerRect[0] - _borderx), self._innerRect[1], self._innerRect[2], self._innerRect[3])
 
         if borderx > (self._viewPortLimit[0] - self.xmax()) and expand:
-            self.scaleViewportLimit(borderx + self.xmax(), self._viewPortLimit[1])
+            self.changeViewportLimits(borderx + self.xmax(), self._viewPortLimit[1])
             self._innerRect = (self._innerRect[0], self._innerRect[1], 1, self._innerRect[3])
         else:
             self._innerRect = (
@@ -249,13 +247,13 @@ class Rect:
 
         if self.ymin() < bordery and expand:
             self._innerRect = (self._innerRect[0], 0, self._innerRect[2], self._innerRect[3])
-            self.scaleViewportLimit(self._viewPortLimit[0], self._viewPortLimit[1] + bordery - self.ymin())
+            self.changeViewportLimits(self._viewPortLimit[0], self._viewPortLimit[1] + bordery - self.ymin())
         else:
             self._innerRect = (
                 self._innerRect[0], max(0, self._innerRect[1] - _bordery), self._innerRect[2], self._innerRect[3])
 
         if bordery > self._viewPortLimit[1] - self.ymax() and expand:
-            self.scaleViewportLimit(self._viewPortLimit[0], bordery + self.ymax())
+            self.changeViewportLimits(self._viewPortLimit[0], bordery + self.ymax())
             self._innerRect = (self._innerRect[0], self._innerRect[1], self._innerRect[2], 1)
         else:
             self._innerRect = (
@@ -325,8 +323,8 @@ class Rect:
         if not rect is None:
             new_viewport = max(self._viewPortLimit[0], rect._viewPortLimit[0]), max(self._viewPortLimit[1],
                                                                                     rect._viewPortLimit[1])
-            self.scaleViewportLimit(new_viewport[0], new_viewport[1])
-            rect.scaleViewportLimit(new_viewport[0], new_viewport[1])
+            self.changeViewportLimits(new_viewport[0], new_viewport[1])
+            rect.changeViewportLimits(new_viewport[0], new_viewport[1])
 
             x.extend([rect.xmin(), rect.xmax()])
             y.extend([rect.ymin(), rect.ymax()])
