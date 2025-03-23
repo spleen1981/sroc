@@ -355,6 +355,13 @@ class _stdBoxesOps():
             raise ValueError("Invalid reference to calculate distance")
         return _stdPointsOps().pointsDistance(x0, y0, x1, y1, type=type)
 
+    def isStdBoxOverlapped(self, box1, box2, tolerance=5):
+        def is_inside(r1, r2):
+            return r1[0] + tolerance >= r2[0] and r1[1] + tolerance >= r2[1] and r1[2] <= r2[2] + tolerance and r1[3] <= \
+                r2[3] + tolerance
+
+        return is_inside(box1, box2) or is_inside(box2, box1)
+
 
 class _stdPointsOps():
     def pointsDistance(self, x0=0, y0=0, x1=0, y1=0, type="cartesian"):
@@ -483,7 +490,7 @@ class Rects:
         self.rects.append(box)
         if update_viewport:
             if self.viewPort is None:
-                self.viewPort=Rect(box=box)
+                self.viewPort = Rect(box=box)
             self.viewPort.union(std_box=box)
         return True
 
@@ -522,9 +529,20 @@ class Rects:
         return self
 
     def moveRectsFrom(self, rects):
-        res=self._moveStdBoxesFrom(boxes=rects.rects, maybe_update_viewport=False)
+        res = self._moveStdBoxesFrom(boxes=rects.rects, maybe_update_viewport=False)
         if res:
             self.viewPort.union(std_box=rects.viewPort.toBox())
+        return res
+
+    def removeOverlappingRects(self, rects):
+        res=[]
+        for i in range(len(self.rects) - 1, -1, -1):
+            for rect in rects.rects:
+                if _stdBoxesOps().isStdBoxOverlapped(self.rects[i], rect):
+                    self.rects.pop(i)
+                    res.append(i)
+                    break
+        self.updateViewport()
         return res
 
     def _moveStdBoxesFrom(self, boxes, maybe_update_viewport=True):
@@ -601,17 +619,18 @@ class CactusRects(Rects):
         return self._maybeAddStdBoxToSearchSet(box=box, update_viewport=update_viewport)
 
     def _maybeAddStdBoxToSearchSet(self, box, update_viewport=True):
-        src_set=self._getSearchSet()
+        src_set = self._getSearchSet()
         for boundary_rect in src_set:
             rect_dist = _stdBoxesOps().stdBoxesDistance(box, boundary_rect, reference="border",
-                                                   type="cartesian_squares")
+                                                        type="cartesian_squares")
             if rect_dist <= self.square_tolerance:
                 super()._addStdBox(box, update_viewport=update_viewport)
                 return True
         return False
 
     def _stdBoxIsCloseToVP(self, box):
-        return not self.viewPort._getDistFromStdBox(box, reference="border", type="cartesian_squares") > self.square_tolerance
+        return not self.viewPort._getDistFromStdBox(box, reference="border",
+                                                    type="cartesian_squares") > self.square_tolerance
 
     def _getSearchSet(self):
         boundary_rects = set()
