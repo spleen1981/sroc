@@ -355,6 +355,9 @@ class _stdBoxesOps():
             raise ValueError("Invalid reference to calculate distance")
         return _stdPointsOps().pointsDistance(x0, y0, x1, y1, type=type)
 
+    def stdBoxesEqual(self, box1, box2):
+        return box1[0] == box2[0] and box1[1] == box2[1] and box1[2] == box2[2] and box1[3] == box2[3]
+
     def isStdBoxOverlapped(self, box1, box2, tolerance=5):
         def is_inside(r1, r2):
             return r1[0] + tolerance >= r2[0] and r1[1] + tolerance >= r2[1] and r1[2] <= r2[2] + tolerance and r1[3] <= \
