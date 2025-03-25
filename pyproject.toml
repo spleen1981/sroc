@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "sroc"
-version = "0.2.2"
+version = "0.2.3"
 description = "Straight Rectangles on Canvas"
 authors = ["Giovanni Cascione <ing.cascione@gmail.com>"]
 license = "GPL-3.0"
